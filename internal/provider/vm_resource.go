@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -37,6 +38,11 @@ type vmModel struct {
 	PublicIP          types.Bool   `tfsdk:"public_ip"`
 	NetworkIDs        types.List   `tfsdk:"network_ids"`
 	SecurityGroupIDs  types.List   `tfsdk:"security_group_ids"`
+	SSHKeyID          types.String `tfsdk:"ssh_key_id"`
+	DataVolumeID      types.String `tfsdk:"data_volume_id"`
+	ExposeSSH         types.Bool   `tfsdk:"expose_ssh"`
+	SSHNodePort       types.Int64  `tfsdk:"ssh_node_port"`
+	SSHExposed        types.Bool   `tfsdk:"ssh_exposed"`
 	DesiredState      types.String `tfsdk:"desired_state"`
 	State             types.String `tfsdk:"state"`
 	IP                types.String `tfsdk:"ip"`
@@ -118,6 +124,35 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 					listplanmodifier.RequiresReplace(),
 				},
 			},
+			"ssh_key_id": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "SSH key UUID injected into cloud-init for this VM.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"data_volume_id": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Optional data volume UUID to attach at deploy time.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"expose_ssh": schema.BoolAttribute{
+				Optional:            true,
+				MarkdownDescription: "Expose VM SSH via a Kubernetes NodePort Service.",
+			},
+			"ssh_node_port": schema.Int64Attribute{
+				Optional:            true,
+				MarkdownDescription: "Desired NodePort for SSH exposure (auto-assigned when omitted).",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
+			},
+			"ssh_exposed": schema.BoolAttribute{
+				Computed:            true,
+				MarkdownDescription: "Whether SSH is currently exposed via NodePort.",
+			},
 			"desired_state": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "Target power state: `running` or `stopped`. Default: `running`.",
@@ -143,18 +178,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 }
 
 func (r *vmResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	client, ok := req.ProviderData.(*virtfoundry.Client)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected provider data",
-			fmt.Sprintf("Expected *virtfoundry.Client, got %T", req.ProviderData),
-		)
-		return
-	}
-	r.client = client
+	r.client = configureClient(req, resp)
 }
 
 func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -176,34 +200,10 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	}
 
 	desired := strings.ToLower(stringValue(plan.DesiredState, "running"))
-	in := virtfoundry.DeployVMInput{Name: plan.Name.ValueString()}
-	if !plan.DisplayName.IsNull() {
-		in.DisplayName = plan.DisplayName.ValueString()
-	}
-	if !plan.TemplateID.IsNull() {
-		in.TemplateID = plan.TemplateID.ValueString()
-	}
-	if !plan.ServiceOfferingID.IsNull() {
-		in.ServiceOfferingID = plan.ServiceOfferingID.ValueString()
-	}
-	if !plan.PublicIP.IsNull() {
-		in.PublicIP = plan.PublicIP.ValueBool()
-	}
-	if !plan.NetworkIDs.IsNull() {
-		var ids []string
-		resp.Diagnostics.Append(plan.NetworkIDs.ElementsAs(ctx, &ids, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		in.NetworkIDs = ids
-	}
-	if !plan.SecurityGroupIDs.IsNull() {
-		var ids []string
-		resp.Diagnostics.Append(plan.SecurityGroupIDs.ElementsAs(ctx, &ids, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		in.SecurityGroupIDs = ids
+	in, diags := deployInputFromPlan(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	vm, err := r.client.DeployVM(ctx, tenantID, in)
@@ -231,7 +231,13 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		}
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, vmToModel(vm, plan))...)
+	sshInfo, diags := r.readSSHInfo(ctx, tenantID, vm.Name, plan.ExposeSSH)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, vmToModel(vm, plan, sshInfo))...)
 }
 
 func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -254,7 +260,7 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 
 	vm, err := r.client.GetVM(ctx, tenantID, state.Name.ValueString())
 	if err != nil {
-		if strings.Contains(err.Error(), "HTTP 404") {
+		if isNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -262,7 +268,8 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, vmToModel(vm, state))...)
+	sshInfo, _ := r.client.GetVMSSH(ctx, tenantID, state.Name.ValueString())
+	resp.Diagnostics.Append(resp.State.Set(ctx, vmToModel(vm, state, sshInfo))...)
 }
 
 func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -332,7 +339,13 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		vm = current
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, vmToModel(vm, plan))...)
+	sshInfo, diags := r.ensureSSH(ctx, tenantID, name, plan, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, vmToModel(vm, plan, sshInfo))...)
 }
 
 func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -354,7 +367,7 @@ func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 	}
 
 	if err := r.client.DeleteVM(ctx, tenantID, state.Name.ValueString()); err != nil {
-		if strings.Contains(err.Error(), "HTTP 404") {
+		if isNotFound(err) {
 			return
 		}
 		resp.Diagnostics.AddError("Delete VM failed", err.Error())
@@ -377,19 +390,103 @@ func (r *vmResource) ImportState(ctx context.Context, req resource.ImportStateRe
 	}
 }
 
-func resolveTenantID(client *virtfoundry.Client, attr types.String) (string, diag.Diagnostics) {
+func deployInputFromPlan(ctx context.Context, plan vmModel) (virtfoundry.DeployVMInput, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if !attr.IsNull() && attr.ValueString() != "" {
-		return attr.ValueString(), diags
+	in := virtfoundry.DeployVMInput{Name: plan.Name.ValueString()}
+	if !plan.DisplayName.IsNull() {
+		in.DisplayName = plan.DisplayName.ValueString()
 	}
-	if tid := client.TenantID(); tid != "" {
-		return tid, diags
+	if !plan.TemplateID.IsNull() {
+		in.TemplateID = plan.TemplateID.ValueString()
 	}
-	diags.AddError("Missing tenant_id", "Set tenant_id on the resource or provider block.")
-	return "", diags
+	if !plan.ServiceOfferingID.IsNull() {
+		in.ServiceOfferingID = plan.ServiceOfferingID.ValueString()
+	}
+	if !plan.PublicIP.IsNull() {
+		in.PublicIP = plan.PublicIP.ValueBool()
+	}
+	if !plan.NetworkIDs.IsNull() {
+		var ids []string
+		diags.Append(plan.NetworkIDs.ElementsAs(ctx, &ids, false)...)
+		in.NetworkIDs = ids
+	}
+	if !plan.SecurityGroupIDs.IsNull() {
+		var ids []string
+		diags.Append(plan.SecurityGroupIDs.ElementsAs(ctx, &ids, false)...)
+		in.SecurityGroupIDs = ids
+	}
+	if !plan.SSHKeyID.IsNull() {
+		in.SSHKeyID = plan.SSHKeyID.ValueString()
+	}
+	if !plan.DataVolumeID.IsNull() {
+		in.DataVolumeID = plan.DataVolumeID.ValueString()
+	}
+	if !plan.ExposeSSH.IsNull() {
+		in.ExposeSSH = plan.ExposeSSH.ValueBool()
+	}
+	return in, diags
 }
 
-func vmToModel(vm *virtfoundry.VM, cfg vmModel) vmModel {
+func (r *vmResource) readSSHInfo(ctx context.Context, tenantID, vmName string, expose types.Bool) (*virtfoundry.VMSSHInfo, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	wantExpose := !expose.IsNull() && expose.ValueBool()
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		info, err := r.client.GetVMSSH(ctx, tenantID, vmName)
+		if err != nil {
+			if isNotFound(err) {
+				return nil, diags
+			}
+			diags.AddError("Read VM SSH failed", err.Error())
+			return nil, diags
+		}
+		if !wantExpose || info.Exposed || info.NodePort > 0 {
+			return info, diags
+		}
+		if time.Now().After(deadline) {
+			return info, diags
+		}
+		select {
+		case <-ctx.Done():
+			diags.AddError("Read VM SSH failed", ctx.Err().Error())
+			return nil, diags
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+func (r *vmResource) ensureSSH(ctx context.Context, tenantID, vmName string, plan, state vmModel) (*virtfoundry.VMSSHInfo, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	wantExpose := !plan.ExposeSSH.IsNull() && plan.ExposeSSH.ValueBool()
+	hadExpose := !state.ExposeSSH.IsNull() && state.ExposeSSH.ValueBool()
+	if wantExpose && !hadExpose {
+		var port int32
+		if !plan.SSHNodePort.IsNull() {
+			port = int32(plan.SSHNodePort.ValueInt64())
+		}
+		deadline := time.Now().Add(3 * time.Minute)
+		for {
+			_, err := r.client.ExposeVMSSH(ctx, tenantID, vmName, port)
+			if err == nil {
+				break
+			}
+			if strings.Contains(err.Error(), "no IP") && time.Now().Before(deadline) {
+				select {
+				case <-ctx.Done():
+					diags.AddError("Expose VM SSH failed", ctx.Err().Error())
+					return nil, diags
+				case <-time.After(5 * time.Second):
+					continue
+				}
+			}
+			diags.AddError("Expose VM SSH failed", err.Error())
+			return nil, diags
+		}
+	}
+	return r.readSSHInfo(ctx, tenantID, vmName, plan.ExposeSSH)
+}
+
+func vmToModel(vm *virtfoundry.VM, cfg vmModel, ssh *virtfoundry.VMSSHInfo) vmModel {
 	out := vmModel{
 		ID:                types.StringValue(vm.ID),
 		Name:              types.StringValue(vm.Name),
@@ -401,7 +498,19 @@ func vmToModel(vm *virtfoundry.VM, cfg vmModel) vmModel {
 		PublicIP:          cfg.PublicIP,
 		NetworkIDs:        cfg.NetworkIDs,
 		SecurityGroupIDs:  cfg.SecurityGroupIDs,
+		SSHKeyID:          cfg.SSHKeyID,
+		DataVolumeID:      cfg.DataVolumeID,
+		ExposeSSH:         cfg.ExposeSSH,
+		SSHNodePort:       cfg.SSHNodePort,
 		DesiredState:      types.StringValue(stringValue(cfg.DesiredState, "running")),
+	}
+	if ssh != nil {
+		out.SSHExposed = types.BoolValue(ssh.Exposed)
+		if ssh.NodePort > 0 {
+			out.SSHNodePort = types.Int64Value(int64(ssh.NodePort))
+		}
+	} else if !cfg.SSHExposed.IsNull() {
+		out.SSHExposed = cfg.SSHExposed
 	}
 	if !cfg.TenantID.IsNull() && cfg.TenantID.ValueString() != "" {
 		out.TenantID = cfg.TenantID
@@ -415,11 +524,4 @@ func vmToModel(vm *virtfoundry.VM, cfg vmModel) vmModel {
 		out.IP = types.StringValue(vm.IP)
 	}
 	return out
-}
-
-func stringValue(v types.String, fallback string) string {
-	if !v.IsNull() && v.ValueString() != "" {
-		return v.ValueString()
-	}
-	return fallback
 }

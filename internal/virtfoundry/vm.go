@@ -8,22 +8,6 @@ import (
 	"time"
 )
 
-// VM is a VirtFoundry virtual machine.
-type VM struct {
-	ID                string `json:"id"`
-	TenantID          string `json:"tenant_id"`
-	Name              string `json:"name"`
-	DisplayName       string `json:"display_name"`
-	State             string `json:"state"`
-	ErrorMessage      string `json:"error_message"`
-	CPU               int    `json:"cpu"`
-	MemoryMi          int64  `json:"memory_mi"`
-	Image             string `json:"image"`
-	Template          string `json:"template"`
-	IP                string `json:"ip"`
-	ServiceOfferingID string `json:"service_offering_id"`
-}
-
 // DeployVMInput is the POST /vms payload.
 type DeployVMInput struct {
 	Name              string   `json:"name"`
@@ -36,6 +20,9 @@ type DeployVMInput struct {
 	PublicIP          bool     `json:"public_ip,omitempty"`
 	NetworkIDs        []string `json:"network_ids,omitempty"`
 	SecurityGroupIDs  []string `json:"security_group_ids,omitempty"`
+	SSHKeyID          string   `json:"ssh_key_id,omitempty"`
+	DataVolumeID      string   `json:"data_volume_id,omitempty"`
+	ExposeSSH         bool     `json:"expose_ssh,omitempty"`
 }
 
 type vmNameRequest struct {
@@ -110,6 +97,30 @@ func (c *Client) StopVM(ctx context.Context, tenantID, name string) (*VM, error)
 // DeleteVM removes a VM.
 func (c *Client) DeleteVM(ctx context.Context, tenantID, name string) error {
 	return c.jsonRequest(ctx, tenantID, http.MethodPost, "/api/v1/vms/delete", vmNameRequest{Name: name}, nil)
+}
+
+type exposeSSHRequest struct {
+	NodePort int32 `json:"node_port,omitempty"`
+}
+
+// GetVMSSH returns NodePort SSH exposure details for a VM.
+func (c *Client) GetVMSSH(ctx context.Context, tenantID, name string) (*VMSSHInfo, error) {
+	var out VMSSHInfo
+	if err := c.jsonRequest(ctx, tenantID, http.MethodGet, "/api/v1/vms/"+name+"/ssh", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExposeVMSSH creates or updates a NodePort Service for VM SSH access.
+func (c *Client) ExposeVMSSH(ctx context.Context, tenantID, name string, nodePort int32) (int32, error) {
+	var out struct {
+		NodePort int32 `json:"node_port"`
+	}
+	if err := c.jsonRequest(ctx, tenantID, http.MethodPost, "/api/v1/vms/"+name+"/ssh", exposeSSHRequest{NodePort: nodePort}, &out); err != nil {
+		return 0, err
+	}
+	return out.NodePort, nil
 }
 
 // WaitForVMState polls until the VM reaches the target state or timeout.

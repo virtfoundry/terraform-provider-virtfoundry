@@ -76,7 +76,10 @@ func TestDeployGetDeleteVM(t *testing.T) {
 
 func TestStateMatches(t *testing.T) {
 	t.Parallel()
-	cases := []struct{ actual, want string; ok bool }{
+	cases := []struct {
+		actual, want string
+		ok           bool
+	}{
 		{"Running", "running", true},
 		{"Stopped", "stopped", true},
 		{"Shutoff", "stopped", true},

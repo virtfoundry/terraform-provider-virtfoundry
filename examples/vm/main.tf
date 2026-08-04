@@ -4,7 +4,7 @@ terraform {
   required_providers {
     virtfoundry = {
       source  = "virtfoundry/virtfoundry"
-      version = "0.1.0"
+      version = "~> 0.2"
     }
   }
 }

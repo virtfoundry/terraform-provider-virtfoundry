@@ -19,6 +19,9 @@ coverage.html
 *.tfstate.*
 .terraformrc
 examples/provider/.terraformrc
+.terraformrc.docs
+providers-schema.json
+package-lock.json
 
 # IDE
 .idea/

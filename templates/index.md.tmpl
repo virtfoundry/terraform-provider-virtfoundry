@@ -1,0 +1,67 @@
+---
+page_title: "VirtFoundry Provider"
+subcategory: ""
+description: |-
+  Terraform provider for VirtFoundry — Kubernetes-native private cloud IaaS (KubeVirt, Multus, multi-tenant networking).
+---
+
+# VirtFoundry Provider
+
+The **VirtFoundry** provider manages infrastructure through the [VirtFoundry REST API](https://github.com/virtfoundry/core): tenants, VPCs, networks, security groups, volumes, VM templates, virtual machines, snapshots, SSH keys, and IAM.
+
+VirtFoundry runs as a control plane on Kubernetes ([Helm chart](https://github.com/virtfoundry/helm-charts)) and orchestrates KubeVirt VMs, Multus networks, and tenant isolation — without talking to the Kubernetes API directly from Terraform.
+
+## Example Usage
+
+```hcl
+terraform {
+  required_providers {
+    virtfoundry = {
+      source  = "virtfoundry/virtfoundry"
+      version = "~> 0.2"
+    }
+  }
+}
+
+provider "virtfoundry" {
+  endpoint  = "https://virtfoundry.example.com"
+  api_key   = var.virtfoundry_api_key
+  tenant_id = var.tenant_id
+}
+
+resource "virtfoundry_vm" "web" {
+  name                = "web-01"
+  template_id         = var.template_id
+  service_offering_id = "small"
+  public_ip           = true
+  security_group_ids  = [virtfoundry_security_group.ssh.id]
+  desired_state       = "running"
+}
+```
+
+## Requirements
+
+- [Terraform](https://www.terraform.io/downloads) >= 1.0
+- VirtFoundry control plane installed ([installation guide](https://virtfoundry.github.io/helm-charts/docs/guide/installation/))
+- API credentials: **API key** (`vfd_live_...`, recommended) or username/password (JWT)
+
+## Authentication
+
+| Method | Use case |
+|--------|----------|
+| `api_key` | CI/CD, automation, production |
+| `username` + `password` | Development and interactive use |
+
+Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUNDRY_USERNAME`, `VIRTFOUNDRY_PASSWORD`, `VIRTFOUNDRY_TENANT_ID`, `VIRTFOUNDRY_INSECURE`.
+
+## Multi-tenancy
+
+Set `tenant_id` on the provider block for tenant-scoped resources. Root users can manage `virtfoundry_tenant` and omit `tenant_id` on the provider when operating across tenants.
+
+Import IDs use `<tenant_id>/<resource_id>` or `<name>` when `tenant_id` is set on the provider.
+
+## Links
+
+- [VirtFoundry core](https://github.com/virtfoundry/core)
+- [Helm charts & docs](https://github.com/virtfoundry/helm-charts)
+- [Provider examples](https://github.com/virtfoundry/terraform-provider-virtfoundry/tree/main/examples)

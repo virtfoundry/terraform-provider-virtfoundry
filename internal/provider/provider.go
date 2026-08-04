@@ -166,12 +166,33 @@ func (p *virtfoundryProvider) Configure(ctx context.Context, req provider.Config
 
 func (p *virtfoundryProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewTenantResource,
+		NewVPCResource,
+		NewNetworkResource,
+		NewSecurityGroupResource,
+		NewVolumeResource,
+		NewVolumeSnapshotResource,
+		NewVMTemplateResource,
 		NewVMResource,
+		NewVMSnapshotResource,
+		NewSSHKeyResource,
+		NewUserResource,
+		NewRoleResource,
+		NewAPIKeyResource,
 	}
 }
 
 func (p *virtfoundryProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		NewServiceOfferingsDataSource,
+		NewVMTemplatesDataSource,
+		NewVPCsDataSource,
+		NewNetworksDataSource,
+		NewSecurityGroupsDataSource,
+		NewSSHKeysDataSource,
+		NewRolesDataSource,
+		NewUsersDataSource,
+	}
 }
 
 func firstNonEmpty(primary types.String, fallback string) types.String {
