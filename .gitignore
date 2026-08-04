@@ -17,6 +17,8 @@ coverage.html
 .terraform.lock.hcl
 *.tfstate
 *.tfstate.*
+.terraformrc
+examples/provider/.terraformrc
 
 # IDE
 .idea/

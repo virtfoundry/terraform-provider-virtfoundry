@@ -11,16 +11,23 @@ terraform {
 
 provider "virtfoundry" {
   endpoint = var.endpoint
-  api_key  = var.api_key
+  username = var.username
+  password = var.password
 }
 
 variable "endpoint" {
   type        = string
   description = "VirtFoundry API URL"
+  default     = "http://virtfoundry.homelab"
 }
 
-variable "api_key" {
-  type        = string
-  sensitive   = true
-  description = "VirtFoundry API key (vfd_live_...)"
+variable "username" {
+  type    = string
+  default = "root"
+}
+
+variable "password" {
+  type      = string
+  sensitive = true
+  default   = "virtfoundry"
 }

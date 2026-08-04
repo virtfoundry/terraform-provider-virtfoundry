@@ -147,8 +147,9 @@ func (p *virtfoundryProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	if err := client.Health(ctx); err != nil {
-		resp.Diagnostics.AddError("VirtFoundry health check failed", err.Error())
-		return
+		tflog.Warn(ctx, "Health endpoint unavailable (common when only /api is exposed via Gateway); continuing with auth check", map[string]any{
+			"error": err.Error(),
+		})
 	}
 	if err := client.PingAuth(ctx); err != nil {
 		resp.Diagnostics.AddError("VirtFoundry authentication failed", err.Error())
@@ -164,7 +165,9 @@ func (p *virtfoundryProvider) Configure(ctx context.Context, req provider.Config
 }
 
 func (p *virtfoundryProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		NewVMResource,
+	}
 }
 
 func (p *virtfoundryProvider) DataSources(_ context.Context) []func() datasource.DataSource {
