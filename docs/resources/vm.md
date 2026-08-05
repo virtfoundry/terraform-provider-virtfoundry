@@ -11,33 +11,60 @@ Manages a virtual machine in a VirtFoundry tenant. VMs are backed by KubeVirt an
 
 ## Example Usage
 
+Use **catalog names** for templates and offerings (no data source required):
+
 ```hcl
-data "virtfoundry_service_offerings" "catalog" {}
-data "virtfoundry_vm_templates" "catalog" {}
-
-resource "virtfoundry_security_group" "ssh" {
-  name   = "allow-ssh"
-  vpc_id = virtfoundry_vpc.main.id
-
-  rule {
-    direction = "ingress"
-    protocol  = "tcp"
-    port_from = 22
-    port_to   = 22
-    cidr      = "0.0.0.0/0"
-  }
-}
-
 resource "virtfoundry_vm" "web" {
   name                = "web-01"
   display_name        = "Web server"
-  template_id         = var.template_id
+  template_id         = "ubuntu-2204"
   service_offering_id = "small"
   public_ip           = true
-  security_group_ids  = [virtfoundry_security_group.ssh.id]
+  security_group_ids  = [var.security_group_id]
   desired_state       = "running"
 }
 ```
+
+Or resolve dynamically with the data source:
+
+```hcl
+data "virtfoundry_vm_templates" "catalog" {}
+
+locals {
+  ubuntu = one([
+    for t in data.virtfoundry_vm_templates.catalog.templates : t
+    if t.name == "ubuntu-2204"
+  ])
+}
+
+resource "virtfoundry_vm" "web" {
+  name        = "web-01"
+  template_id = local.ubuntu.id
+  # ...
+}
+```
+
+## Built-in template catalog
+
+VirtFoundry seeds OS templates at install. Tenants see **platform** templates plus **tenant** defaults. Use the `name` column in `template_id`:
+
+| Name | Scope | Description |
+|------|-------|-------------|
+| `cirros` | platform | Cirros demo (minimal) |
+| `ubuntu-2204` | platform | Ubuntu 22.04 container disk |
+| `windows-server-2022` | platform | Windows Server 2022 (ISO import) |
+| `fedora-39` | tenant | Fedora 39 (seeded per tenant) |
+
+List all available templates:
+
+```hcl
+data "virtfoundry_vm_templates" "catalog" {}
+# terraform console → data.virtfoundry_vm_templates.catalog.templates
+```
+
+Custom images (Ubuntu 24.04, private registry, cloud-init baked in) → [`virtfoundry_vm_template`](vm_template.md).
+
+See also [VirtFoundry VM templates](https://github.com/virtfoundry/core/blob/main/docs/VM-TEMPLATES.md) for image URLs and ISO flow.
 
 ## Argument Reference
 
@@ -45,8 +72,8 @@ resource "virtfoundry_vm" "web" {
 |------|------|----------|-------------|
 | `name` | String | yes | VM name (slug) within the tenant namespace. Forces replacement. |
 | `display_name` | String | no | Human-readable name. |
-| `template_id` | String | no | VM template UUID. Forces replacement. |
-| `service_offering_id` | String | no | Service offering UUID or name (e.g. `small`). Forces replacement. |
+| `template_id` | String | no | VM template **UUID or catalog name** (e.g. `ubuntu-2204`, `fedora-39`). Forces replacement. |
+| `service_offering_id` | String | no | Service offering **UUID or name** (e.g. `small`). Can be changed in-place when the VM is stopped. |
 | `public_ip` | Boolean | no | Attach shared public network (requires `security_group_ids`). |
 | `network_ids` | List(String) | no | Private network UUIDs. Default VPC subnet is used when omitted. |
 | `security_group_ids` | List(String) | no | Security group UUIDs. Required when `public_ip = true`. |

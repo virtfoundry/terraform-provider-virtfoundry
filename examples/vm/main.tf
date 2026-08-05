@@ -19,8 +19,8 @@ provider "virtfoundry" {
 resource "virtfoundry_vm" "test" {
   name                = var.vm_name
   display_name        = "Terraform test VM"
-  template_id         = var.template_id
-  service_offering_id = var.service_offering_id
+  template_id         = var.template_name
+  service_offering_id = var.service_offering_name
   public_ip           = true
   security_group_ids  = [var.security_group_id]
   desired_state       = "running"

@@ -21,16 +21,13 @@ TOKEN="$(curl -sf -X POST "$ENDPOINT/api/v1/auth/login" \
 TENANT_ID="$(curl -sf "$ENDPOINT/api/v1/tenants" -H "Authorization: Bearer $TOKEN" \
   | python3 -c 'import sys,json; print(json.load(sys.stdin)["tenants"][0]["id"])')"
 
-OFFERING_ID="$(curl -sf "$ENDPOINT/api/v1/service-offerings" -H "Authorization: Bearer $TOKEN" \
-  | python3 -c 'import sys,json; print(next(o["id"] for o in json.load(sys.stdin)["service_offerings"] if o["name"]=="small"))')"
-
-TEMPLATE_ID="$(curl -sf "$ENDPOINT/api/v1/vm-templates" -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" \
-  | python3 -c 'import sys,json; print(next(t["id"] for t in json.load(sys.stdin)["vm_templates"] if t["name"]=="cirros"))')"
+OFFERING_NAME="${OFFERING_NAME:-small}"
+TEMPLATE_NAME="${TEMPLATE_NAME:-ubuntu-2204}"
 
 SG_ID="$(curl -sf "$ENDPOINT/api/v1/security-groups" -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" \
   | python3 -c 'import sys,json; print(json.load(sys.stdin)["security_groups"][0]["id"])')"
 
-echo "    tenant=$TENANT_ID template=$TEMPLATE_ID offering=$OFFERING_ID sg=$SG_ID vm=$VM_NAME"
+echo "    tenant=$TENANT_ID template=$TEMPLATE_NAME offering=$OFFERING_NAME sg=$SG_ID vm=$VM_NAME"
 
 export TF_CLI_CONFIG_FILE="$ROOT/examples/provider/.terraformrc"
 
@@ -43,8 +40,8 @@ terraform apply -auto-approve -input=false \
   -var="username=$USER" \
   -var="password=$PASS" \
   -var="tenant_id=$TENANT_ID" \
-  -var="template_id=$TEMPLATE_ID" \
-  -var="service_offering_id=$OFFERING_ID" \
+  -var="template_name=$TEMPLATE_NAME" \
+  -var="service_offering_name=$OFFERING_NAME" \
   -var="security_group_id=$SG_ID" \
   -var="vm_name=$VM_NAME"
 
@@ -56,8 +53,8 @@ terraform destroy -auto-approve -input=false \
   -var="username=$USER" \
   -var="password=$PASS" \
   -var="tenant_id=$TENANT_ID" \
-  -var="template_id=$TEMPLATE_ID" \
-  -var="service_offering_id=$OFFERING_ID" \
+  -var="template_name=$TEMPLATE_NAME" \
+  -var="service_offering_name=$OFFERING_NAME" \
   -var="security_group_id=$SG_ID" \
   -var="vm_name=$VM_NAME"
 

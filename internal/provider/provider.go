@@ -174,11 +174,13 @@ func (p *virtfoundryProvider) Resources(_ context.Context) []func() resource.Res
 		NewVolumeSnapshotResource,
 		NewVMTemplateResource,
 		NewVMResource,
+		NewVMVolumeAttachmentResource,
 		NewVMSnapshotResource,
 		NewSSHKeyResource,
 		NewUserResource,
 		NewRoleResource,
 		NewAPIKeyResource,
+		NewServiceOfferingResource,
 	}
 }
 

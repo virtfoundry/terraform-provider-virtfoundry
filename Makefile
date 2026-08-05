@@ -35,4 +35,8 @@ test-integration-full: build
 	@chmod +x scripts/test-full-stack.sh
 	./scripts/test-full-stack.sh
 
+test-integration-phases: build
+	@chmod +x scripts/test-phases.sh
+	./scripts/test-phases.sh
+
 lint: fmt vet test
