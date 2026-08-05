@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `virtfoundry_vm` `template_id` and `service_offering_id` accept catalog **names** (e.g. `ubuntu-2204`, `small`) in addition to UUIDs
 - Document built-in template catalog in `docs/resources/vm.md` and `docs/data-sources/vm_templates.md`
+- `virtfoundry_vm_template` waits for ISO CDI import (`import_state`, `wait_for_import`)
+- `examples/iso-windows/` and `scripts/test-iso-windows.sh` for Windows ISO flow
 - `virtfoundry_volume` destroy calls `DELETE /volumes/{id}` (was state-only)
 - `virtfoundry_vm` supports in-place `service_offering_id` updates (stops VM before resize)
 - Fix `virtfoundry_security_groups` data source schema/model mismatch

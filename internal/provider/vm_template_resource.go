@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -35,7 +37,10 @@ type vmTemplateModel struct {
 	ISOSizeGi         types.Int64  `tfsdk:"iso_size_gi"`
 	BootDiskSizeGi    types.Int64  `tfsdk:"boot_disk_size_gi"`
 	StorageClass      types.String `tfsdk:"storage_class"`
+	WaitForImport     types.Bool   `tfsdk:"wait_for_import"`
+	ImportWaitMinutes types.Int64  `tfsdk:"import_wait_timeout_minutes"`
 	State             types.String `tfsdk:"state"`
+	ImportState       types.String `tfsdk:"import_state"`
 	Hypervisor        types.String `tfsdk:"hypervisor"`
 }
 
@@ -70,8 +75,17 @@ func (r *vmTemplateResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"iso_size_gi":          schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 			"boot_disk_size_gi":    schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 			"storage_class":        schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"state":                schema.StringAttribute{Computed: true},
-			"hypervisor":           schema.StringAttribute{Computed: true},
+			"wait_for_import": schema.BoolAttribute{
+				Optional:            true,
+				MarkdownDescription: "When `source_type` is `iso`, block until CDI import reaches `ready` (default: true).",
+			},
+			"import_wait_timeout_minutes": schema.Int64Attribute{
+				Optional:            true,
+				MarkdownDescription: "Max minutes to wait for ISO import (default: 45).",
+			},
+			"state":        schema.StringAttribute{Computed: true},
+			"import_state": schema.StringAttribute{Computed: true},
+			"hypervisor":   schema.StringAttribute{Computed: true},
 		},
 	}
 }
@@ -100,6 +114,14 @@ func (r *vmTemplateResource) Create(ctx context.Context, req resource.CreateRequ
 	if err != nil {
 		resp.Diagnostics.AddError("Create VM template failed", err.Error())
 		return
+	}
+	if templateIsISO(plan) && templateWaitForImport(plan) {
+		timeout := templateImportTimeout(plan)
+		tmpl, err = r.client.WaitForVMTemplateImport(ctx, tenantID, tmpl, timeout)
+		if err != nil {
+			resp.Diagnostics.AddError("Wait for ISO import failed", err.Error())
+			return
+		}
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, vmTemplateToModel(tmpl, plan))...)
 }
@@ -278,5 +300,32 @@ func vmTemplateToModel(t *virtfoundry.VMTemplate, cfg vmTemplateModel) vmTemplat
 	if !cfg.StorageClass.IsNull() {
 		out.StorageClass = cfg.StorageClass
 	}
+	if !cfg.WaitForImport.IsNull() {
+		out.WaitForImport = cfg.WaitForImport
+	}
+	if !cfg.ImportWaitMinutes.IsNull() {
+		out.ImportWaitMinutes = cfg.ImportWaitMinutes
+	}
+	if t.ImportState != "" {
+		out.ImportState = types.StringValue(t.ImportState)
+	}
 	return out
+}
+
+func templateIsISO(plan vmTemplateModel) bool {
+	return strings.EqualFold(stringValue(plan.SourceType, ""), "iso")
+}
+
+func templateWaitForImport(plan vmTemplateModel) bool {
+	if plan.WaitForImport.IsNull() {
+		return true
+	}
+	return plan.WaitForImport.ValueBool()
+}
+
+func templateImportTimeout(plan vmTemplateModel) time.Duration {
+	if !plan.ImportWaitMinutes.IsNull() && plan.ImportWaitMinutes.ValueInt64() > 0 {
+		return time.Duration(plan.ImportWaitMinutes.ValueInt64()) * time.Minute
+	}
+	return 45 * time.Minute
 }
