@@ -7,7 +7,11 @@ description: |-
 
 # virtfoundry_volume_snapshot (Resource)
 
-Creates a snapshot of a block volume. **Note:** the API has no delete endpoint yet — `terraform destroy` removes state only.
+Creates a snapshot of a block volume via the VirtFoundry API (`VolumeSnapshot` / `snapshot.storage.k8s.io`).
+
+**Cluster prerequisites:** CSI external-snapshotter CRDs + snapshot-controller, a snapshot-capable StorageClass (e.g. Longhorn, Ceph RBD), and a `VolumeSnapshotClass`. This does **not** work with `local-path`. For guest-level snapshots without CSI, use [`virtfoundry_vm_snapshot`](vm_snapshot.md) instead.
+
+**Note:** the API has no delete endpoint yet — `terraform destroy` removes state only.
 
 ## Example Usage
 
