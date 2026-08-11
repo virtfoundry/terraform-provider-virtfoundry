@@ -154,7 +154,12 @@ cd examples/vm && terraform init && terraform apply
 
 - [Provider docs](docs/index.md) — full reference on the Terraform Registry
 - [Installation guide](https://virtfoundry.github.io/helm-charts/docs/guide/installation/)
+- [Why VirtFoundry](https://github.com/virtfoundry/core/blob/main/docs/WHY.md)
 - [VirtFoundry core](https://github.com/virtfoundry/core)
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) · [GOVERNANCE.md](GOVERNANCE.md) · [SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## License
 
