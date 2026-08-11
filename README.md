@@ -153,8 +153,12 @@ cd examples/vm && terraform init && terraform apply
 ## Documentation
 
 - [Provider docs](docs/index.md) — full reference on the Terraform Registry
+- [Quickstart](https://virtfoundry.github.io/helm-charts/docs/guide/quickstart/)
 - [Installation guide](https://virtfoundry.github.io/helm-charts/docs/guide/installation/)
 - [Why VirtFoundry](https://github.com/virtfoundry/core/blob/main/docs/WHY.md)
+- [Roadmap](https://github.com/virtfoundry/core/blob/main/ROADMAP.md)
+- [Adopters](https://github.com/virtfoundry/core/blob/main/ADOPTERS.md)
+- [CNCF traction checklist](https://github.com/virtfoundry/core/blob/main/docs/CNCF-CHECKLIST.md)
 - [VirtFoundry core](https://github.com/virtfoundry/core)
 
 ## Contributing
