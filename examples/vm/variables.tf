@@ -16,25 +16,27 @@ variable "password" {
 
 variable "tenant_id" {
   type        = string
-  description = "VirtFoundry tenant UUID"
+  description = "Target tenant UUID"
 }
 
-variable "template_id" {
+variable "template_name" {
   type        = string
-  description = "VM template UUID (e.g. cirros)"
+  default     = "ubuntu-2204"
+  description = "VM template catalog name or UUID (e.g. ubuntu-2204, cirros, fedora-39)"
 }
 
-variable "service_offering_id" {
+variable "service_offering_name" {
   type        = string
-  description = "Service offering UUID (e.g. small)"
+  default     = "small"
+  description = "Service offering catalog name or UUID (e.g. small, medium, large)"
 }
 
 variable "security_group_id" {
   type        = string
-  description = "Default security group UUID for public IP access"
+  description = "Security group UUID for public IP access"
 }
 
 variable "vm_name" {
-  type        = string
-  description = "Unique VM slug for this test run"
+  type    = string
+  default = "tf-demo-vm"
 }

@@ -52,16 +52,19 @@ func (c *Client) DeployVM(ctx context.Context, tenantID string, in DeployVMInput
 }
 
 // UpdateVM patches VM metadata/resources.
-func (c *Client) UpdateVM(ctx context.Context, tenantID, name string, displayName string, cpu int, memoryMi int64) (*VM, error) {
+func (c *Client) UpdateVM(ctx context.Context, tenantID, name string, in UpdateVMInput) (*VM, error) {
 	body := map[string]any{}
-	if displayName != "" {
-		body["display_name"] = displayName
+	if in.DisplayName != "" {
+		body["display_name"] = in.DisplayName
 	}
-	if cpu > 0 {
-		body["cpu"] = cpu
+	if in.CPU > 0 {
+		body["cpu"] = in.CPU
 	}
-	if memoryMi > 0 {
-		body["memory_mi"] = memoryMi
+	if in.MemoryMi > 0 {
+		body["memory_mi"] = in.MemoryMi
+	}
+	if in.ServiceOfferingID != "" {
+		body["service_offering_id"] = in.ServiceOfferingID
 	}
 	var out struct {
 		VM VM `json:"vm"`
@@ -70,6 +73,14 @@ func (c *Client) UpdateVM(ctx context.Context, tenantID, name string, displayNam
 		return nil, err
 	}
 	return &out.VM, nil
+}
+
+// UpdateVMInput is the PATCH /vms/{name} payload.
+type UpdateVMInput struct {
+	DisplayName       string
+	CPU               int
+	MemoryMi          int64
+	ServiceOfferingID string
 }
 
 // StartVM powers on a VM.
@@ -97,6 +108,43 @@ func (c *Client) StopVM(ctx context.Context, tenantID, name string) (*VM, error)
 // DeleteVM removes a VM.
 func (c *Client) DeleteVM(ctx context.Context, tenantID, name string) error {
 	return c.jsonRequest(ctx, tenantID, http.MethodPost, "/api/v1/vms/delete", vmNameRequest{Name: name}, nil)
+}
+
+type attachVolumeInput struct {
+	VolumeID string `json:"volume_id"`
+}
+
+// AttachVolumeToVM hot-plugs a volume into a running or stopped VM.
+func (c *Client) AttachVolumeToVM(ctx context.Context, tenantID, vmName, volumeID string) (*Volume, error) {
+	var out struct {
+		Volume Volume `json:"volume"`
+	}
+	if err := c.jsonRequest(ctx, tenantID, http.MethodPost, "/api/v1/vms/"+vmName+"/volumes", attachVolumeInput{VolumeID: volumeID}, &out); err != nil {
+		return nil, err
+	}
+	return &out.Volume, nil
+}
+
+// DetachVolumeFromVM removes a volume from a VM.
+func (c *Client) DetachVolumeFromVM(ctx context.Context, tenantID, vmName, volumeID string) (*Volume, error) {
+	var out struct {
+		Volume Volume `json:"volume"`
+	}
+	if err := c.jsonRequest(ctx, tenantID, http.MethodDelete, "/api/v1/vms/"+vmName+"/volumes/"+volumeID, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out.Volume, nil
+}
+
+// ListVMVolumes returns volumes attached to a VM.
+func (c *Client) ListVMVolumes(ctx context.Context, tenantID, vmName string) ([]Volume, error) {
+	var out struct {
+		Volumes []Volume `json:"volumes"`
+	}
+	if err := c.jsonRequest(ctx, tenantID, http.MethodGet, "/api/v1/vms/"+vmName+"/volumes", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Volumes, nil
 }
 
 type exposeSSHRequest struct {

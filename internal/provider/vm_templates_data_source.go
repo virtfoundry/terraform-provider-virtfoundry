@@ -30,6 +30,7 @@ var vmTemplateAttrTypes = map[string]attr.Type{
 	"source_type":  types.StringType,
 	"os_type":      types.StringType,
 	"state":        types.StringType,
+	"import_state": types.StringType,
 	"hypervisor":   types.StringType,
 }
 
@@ -58,6 +59,7 @@ func (d *vmTemplatesDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 						"source_type":  schema.StringAttribute{Computed: true},
 						"os_type":      schema.StringAttribute{Computed: true},
 						"state":        schema.StringAttribute{Computed: true},
+						"import_state": schema.StringAttribute{Computed: true},
 						"hypervisor":   schema.StringAttribute{Computed: true},
 					},
 				},
@@ -108,6 +110,7 @@ func (d *vmTemplatesDataSource) Read(ctx context.Context, req datasource.ReadReq
 			"source_type":  types.StringValue(t.SourceType),
 			"os_type":      types.StringValue(t.OSType),
 			"state":        types.StringValue(t.State),
+			"import_state": types.StringValue(t.ImportState),
 			"hypervisor":   types.StringValue(t.Hypervisor),
 		})
 		resp.Diagnostics.Append(diags...)

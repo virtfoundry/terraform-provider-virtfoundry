@@ -20,6 +20,10 @@ type tenantListModel struct {
 	Items    types.List   `tfsdk:"items"`
 }
 
+type tenantIDModel struct {
+	TenantID types.String `tfsdk:"tenant_id"`
+}
+
 func configureDataSource(client **virtfoundry.Client, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -65,7 +69,7 @@ func (d *vpcsDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg tenantIDModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
@@ -129,7 +133,7 @@ func (d *networksDataSource) Read(ctx context.Context, req datasource.ReadReques
 	if d.client == nil {
 		return
 	}
-	var cfg tenantListModel
+	var cfg tenantIDModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
@@ -160,6 +164,11 @@ func NewSecurityGroupsDataSource() datasource.DataSource { return &securityGroup
 
 type securityGroupsDataSource struct{ client *virtfoundry.Client }
 
+type securityGroupsDataSourceModel struct {
+	TenantID       types.String `tfsdk:"tenant_id"`
+	SecurityGroups types.List   `tfsdk:"security_groups"`
+}
+
 func (d *securityGroupsDataSource) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = "virtfoundry_security_groups"
 }
@@ -188,9 +197,9 @@ func (d *securityGroupsDataSource) Read(ctx context.Context, req datasource.Read
 	if d.client == nil {
 		return
 	}
-	var cfg tenantListModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
-	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
+	var state securityGroupsDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+	tenantID, diags := resolveTenantID(d.client, state.TenantID)
 	resp.Diagnostics.Append(diags...)
 	items, err := d.client.ListSecurityGroups(ctx, tenantID)
 	if err != nil {
@@ -209,10 +218,8 @@ func (d *securityGroupsDataSource) Read(ctx context.Context, req datasource.Read
 	}
 	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: attrTypes}, elems)
 	resp.Diagnostics.Append(listDiags...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &struct {
-		TenantID       types.String `tfsdk:"tenant_id"`
-		SecurityGroups types.List   `tfsdk:"security_groups"`
-	}{TenantID: cfg.TenantID, SecurityGroups: list})...)
+	state.SecurityGroups = list
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func NewSSHKeysDataSource() datasource.DataSource { return &sshKeysDataSource{} }
@@ -247,7 +254,7 @@ func (d *sshKeysDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	if d.client == nil {
 		return
 	}
-	var cfg tenantListModel
+	var cfg tenantIDModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
@@ -308,7 +315,7 @@ func (d *rolesDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg tenantIDModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
@@ -379,7 +386,7 @@ func (d *usersDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg tenantIDModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // --- Tenants (root-scoped) ---
@@ -243,6 +244,10 @@ func (c *Client) GetVolume(ctx context.Context, tenantID, id string) (*Volume, e
 	return findByID(items, id, func(v Volume) string { return v.ID })
 }
 
+func (c *Client) DeleteVolume(ctx context.Context, tenantID, id string) error {
+	return c.jsonRequest(ctx, tenantID, http.MethodDelete, "/api/v1/volumes/"+id, nil, nil)
+}
+
 // ErrDeleteNotSupported indicates the API has no delete endpoint for this resource type.
 var ErrDeleteNotSupported = fmt.Errorf("VirtFoundry API does not support deleting this resource type yet")
 
@@ -347,6 +352,38 @@ func (c *Client) GetVMTemplate(ctx context.Context, tenantID, id string) (*VMTem
 		return nil, err
 	}
 	return findByID(items, id, func(t VMTemplate) string { return t.ID })
+}
+
+// ResolveVMTemplateID returns a template UUID from an id or catalog name (e.g. ubuntu-2204).
+func (c *Client) ResolveVMTemplateID(ctx context.Context, tenantID, idOrName string) (string, error) {
+	if strings.TrimSpace(idOrName) == "" {
+		return "", nil
+	}
+	items, err := c.ListVMTemplates(ctx, tenantID)
+	if err != nil {
+		return "", err
+	}
+	t, err := findByIDOrName(items, idOrName, func(t VMTemplate) string { return t.ID }, func(t VMTemplate) string { return t.Name })
+	if err != nil {
+		return "", fmt.Errorf("vm template not found: %q", idOrName)
+	}
+	return t.ID, nil
+}
+
+// ResolveServiceOfferingID returns an offering UUID from an id or catalog name (e.g. small).
+func (c *Client) ResolveServiceOfferingID(ctx context.Context, idOrName string) (string, error) {
+	if strings.TrimSpace(idOrName) == "" {
+		return "", nil
+	}
+	items, err := c.ListServiceOfferings(ctx, false)
+	if err != nil {
+		return "", err
+	}
+	o, err := findByIDOrName(items, idOrName, func(o ServiceOffering) string { return o.ID }, func(o ServiceOffering) string { return o.Name })
+	if err != nil {
+		return "", fmt.Errorf("service offering not found: %q", idOrName)
+	}
+	return o.ID, nil
 }
 
 // --- VM snapshots ---
@@ -463,14 +500,64 @@ func (c *Client) GetSSHKey(ctx context.Context, tenantID, id string) (*SSHKey, e
 	return findByID(items, id, func(k SSHKey) string { return k.ID })
 }
 
-// --- Service offerings (read-only) ---
+// --- Service offerings ---
 
-func (c *Client) ListServiceOfferings(ctx context.Context) ([]ServiceOffering, error) {
+type CreateServiceOfferingInput struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	CPU         int    `json:"cpu"`
+	MemoryMi    int64  `json:"memory_mi"`
+}
+
+type UpdateServiceOfferingInput struct {
+	DisplayName string `json:"display_name,omitempty"`
+	CPU         int    `json:"cpu,omitempty"`
+	MemoryMi    int64  `json:"memory_mi,omitempty"`
+	State       string `json:"state,omitempty"`
+}
+
+func (c *Client) ListServiceOfferings(ctx context.Context, includeInactive bool) ([]ServiceOffering, error) {
+	path := "/api/v1/service-offerings"
+	if includeInactive {
+		path += "?include_inactive=true"
+	}
 	var out struct {
 		ServiceOfferings []ServiceOffering `json:"service_offerings"`
 	}
-	if err := c.jsonRequest(ctx, "", http.MethodGet, "/api/v1/service-offerings", nil, &out); err != nil {
+	if err := c.jsonRequest(ctx, "", http.MethodGet, path, nil, &out); err != nil {
 		return nil, err
 	}
 	return out.ServiceOfferings, nil
+}
+
+func (c *Client) CreateServiceOffering(ctx context.Context, in CreateServiceOfferingInput) (*ServiceOffering, error) {
+	var out struct {
+		ServiceOffering ServiceOffering `json:"service_offering"`
+	}
+	if err := c.jsonRequest(ctx, "", http.MethodPost, "/api/v1/service-offerings", in, &out); err != nil {
+		return nil, err
+	}
+	return &out.ServiceOffering, nil
+}
+
+func (c *Client) UpdateServiceOffering(ctx context.Context, id string, in UpdateServiceOfferingInput) (*ServiceOffering, error) {
+	var out struct {
+		ServiceOffering ServiceOffering `json:"service_offering"`
+	}
+	if err := c.jsonRequest(ctx, "", http.MethodPatch, "/api/v1/service-offerings/"+id, in, &out); err != nil {
+		return nil, err
+	}
+	return &out.ServiceOffering, nil
+}
+
+func (c *Client) DeleteServiceOffering(ctx context.Context, id string) error {
+	return c.jsonRequest(ctx, "", http.MethodDelete, "/api/v1/service-offerings/"+id, nil, nil)
+}
+
+func (c *Client) GetServiceOffering(ctx context.Context, id string) (*ServiceOffering, error) {
+	items, err := c.ListServiceOfferings(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+	return findByID(items, id, func(o ServiceOffering) string { return o.ID })
 }

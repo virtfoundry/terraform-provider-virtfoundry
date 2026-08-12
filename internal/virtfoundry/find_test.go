@@ -1,35 +1,21 @@
 package virtfoundry
 
-import (
-	"errors"
-	"testing"
-)
+import "testing"
 
-func TestIsNotFound(t *testing.T) {
-	if IsNotFound(nil) {
-		t.Fatal("nil error should not be not-found")
+func TestFindByIDOrName(t *testing.T) {
+	items := []VMTemplate{
+		{ID: "a", Name: "ubuntu-2204"},
+		{ID: "b", Name: "fedora-39"},
 	}
-	if !IsNotFound(errors.New("API error: HTTP 404: {\"error\":\"missing\"}")) {
-		t.Fatal("HTTP 404 should be not-found")
+	got, err := findByIDOrName(items, "ubuntu-2204", func(t VMTemplate) string { return t.ID }, func(t VMTemplate) string { return t.Name })
+	if err != nil || got.ID != "a" {
+		t.Fatalf("by name: got %+v err %v", got, err)
 	}
-	if !IsNotFound(errors.New(`resource "abc" not found`)) {
-		t.Fatal("not found message should match")
+	got, err = findByIDOrName(items, "b", func(t VMTemplate) string { return t.ID }, func(t VMTemplate) string { return t.Name })
+	if err != nil || got.Name != "fedora-39" {
+		t.Fatalf("by id: got %+v err %v", got, err)
 	}
-	if IsNotFound(errors.New("permission denied")) {
-		t.Fatal("other errors should not match")
-	}
-}
-
-func TestFindByID(t *testing.T) {
-	items := []Tenant{
-		{ID: "a", Name: "one"},
-		{ID: "b", Name: "two"},
-	}
-	got, err := findByID(items, "b", func(t Tenant) string { return t.ID })
-	if err != nil || got.Name != "two" {
-		t.Fatalf("findByID: got %+v err %v", got, err)
-	}
-	if _, err := findByID(items, "z", func(t Tenant) string { return t.ID }); err == nil {
-		t.Fatal("expected error for missing id")
+	if _, err = findByIDOrName(items, "missing", func(t VMTemplate) string { return t.ID }, func(t VMTemplate) string { return t.Name }); err == nil {
+		t.Fatal("expected error for missing template")
 	}
 }

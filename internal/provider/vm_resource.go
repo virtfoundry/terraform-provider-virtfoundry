@@ -89,17 +89,14 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			},
 			"template_id": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "VM template UUID.",
+				MarkdownDescription: "VM template UUID or catalog name (e.g. `ubuntu-2204`, `fedora-39`, `cirros`).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"service_offering_id": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Service offering UUID or name (e.g. `small`).",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				MarkdownDescription: "Service offering UUID or name (e.g. `small`). Can be changed in-place when the VM is stopped.",
 			},
 			"public_ip": schema.BoolAttribute{
 				Optional:            true,
@@ -200,7 +197,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	}
 
 	desired := strings.ToLower(stringValue(plan.DesiredState, "running"))
-	in, diags := deployInputFromPlan(ctx, plan)
+	in, diags := r.deployInputFromPlan(ctx, tenantID, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -300,7 +297,9 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		if !plan.DisplayName.IsNull() {
 			display = plan.DisplayName.ValueString()
 		}
-		vm, err = r.client.UpdateVM(ctx, tenantID, name, display, 0, 0)
+		vm, err = r.client.UpdateVM(ctx, tenantID, name, virtfoundry.UpdateVMInput{
+			DisplayName: display,
+		})
 		if err != nil {
 			resp.Diagnostics.AddError("Update VM failed", err.Error())
 			return
@@ -308,6 +307,8 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	}
 
 	desired := strings.ToLower(stringValue(plan.DesiredState, "running"))
+	offeringChanged := !plan.ServiceOfferingID.Equal(state.ServiceOfferingID) && !plan.ServiceOfferingID.IsNull()
+
 	current := vm
 	if current == nil {
 		current, err = r.client.GetVM(ctx, tenantID, name)
@@ -317,7 +318,41 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		}
 	}
 
-	if !virtfoundry.StateMatches(current.State, desired) {
+	if offeringChanged {
+		if !virtfoundry.StateMatches(current.State, "stopped") {
+			vm, err = r.client.StopVM(ctx, tenantID, name)
+			if err != nil {
+				resp.Diagnostics.AddError("Stop VM before resize failed", err.Error())
+				return
+			}
+			vm, err = r.client.WaitForVMState(ctx, tenantID, name, "stopped", 5*time.Minute)
+			if err != nil {
+				resp.Diagnostics.AddError("Wait for VM stop before resize failed", err.Error())
+				return
+			}
+		}
+		offeringID, diags := r.resolveServiceOfferingID(ctx, plan.ServiceOfferingID)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		vm, err = r.client.UpdateVM(ctx, tenantID, name, virtfoundry.UpdateVMInput{
+			ServiceOfferingID: offeringID,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Update VM service offering failed", err.Error())
+			return
+		}
+	}
+
+	if current == nil && vm != nil {
+		current = vm
+	}
+	if vm == nil {
+		vm = current
+	}
+
+	if !virtfoundry.StateMatches(vm.State, desired) {
 		switch desired {
 		case "running":
 			vm, err = r.client.StartVM(ctx, tenantID, name)
@@ -390,17 +425,21 @@ func (r *vmResource) ImportState(ctx context.Context, req resource.ImportStateRe
 	}
 }
 
-func deployInputFromPlan(ctx context.Context, plan vmModel) (virtfoundry.DeployVMInput, diag.Diagnostics) {
+func (r *vmResource) deployInputFromPlan(ctx context.Context, tenantID string, plan vmModel) (virtfoundry.DeployVMInput, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	in := virtfoundry.DeployVMInput{Name: plan.Name.ValueString()}
 	if !plan.DisplayName.IsNull() {
 		in.DisplayName = plan.DisplayName.ValueString()
 	}
 	if !plan.TemplateID.IsNull() {
-		in.TemplateID = plan.TemplateID.ValueString()
+		id, resolveDiags := r.resolveVMTemplateID(ctx, tenantID, plan.TemplateID)
+		diags.Append(resolveDiags...)
+		in.TemplateID = id
 	}
 	if !plan.ServiceOfferingID.IsNull() {
-		in.ServiceOfferingID = plan.ServiceOfferingID.ValueString()
+		id, resolveDiags := r.resolveServiceOfferingID(ctx, plan.ServiceOfferingID)
+		diags.Append(resolveDiags...)
+		in.ServiceOfferingID = id
 	}
 	if !plan.PublicIP.IsNull() {
 		in.PublicIP = plan.PublicIP.ValueBool()
@@ -425,6 +464,30 @@ func deployInputFromPlan(ctx context.Context, plan vmModel) (virtfoundry.DeployV
 		in.ExposeSSH = plan.ExposeSSH.ValueBool()
 	}
 	return in, diags
+}
+
+func (r *vmResource) resolveVMTemplateID(ctx context.Context, tenantID string, attr types.String) (string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if attr.IsNull() || attr.ValueString() == "" {
+		return "", diags
+	}
+	id, err := r.client.ResolveVMTemplateID(ctx, tenantID, attr.ValueString())
+	if err != nil {
+		diags.AddError("Resolve VM template failed", err.Error())
+	}
+	return id, diags
+}
+
+func (r *vmResource) resolveServiceOfferingID(ctx context.Context, attr types.String) (string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if attr.IsNull() || attr.ValueString() == "" {
+		return "", diags
+	}
+	id, err := r.client.ResolveServiceOfferingID(ctx, attr.ValueString())
+	if err != nil {
+		diags.AddError("Resolve service offering failed", err.Error())
+	}
+	return id, diags
 }
 
 func (r *vmResource) readSSHInfo(ctx context.Context, tenantID, vmName string, expose types.Bool) (*virtfoundry.VMSSHInfo, diag.Diagnostics) {

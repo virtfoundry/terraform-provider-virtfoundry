@@ -83,7 +83,7 @@ func (d *serviceOfferingsDataSource) Read(ctx context.Context, _ datasource.Read
 		resp.Diagnostics.AddError("Provider not configured", "VirtFoundry client is nil")
 		return
 	}
-	items, err := d.client.ListServiceOfferings(ctx)
+	items, err := d.client.ListServiceOfferings(ctx, false)
 	if err != nil {
 		resp.Diagnostics.AddError("List service offerings failed", err.Error())
 		return
