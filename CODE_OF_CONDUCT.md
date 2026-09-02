@@ -1,5 +1,7 @@
-# Contributor Covenant Code of Conduct
+# Code of Conduct
 
-This project follows the same Code of Conduct as [virtfoundry/core](https://github.com/virtfoundry/core/blob/main/CODE_OF_CONDUCT.md).
+VirtFoundry follows the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
 
-Adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1.
+Canonical project copy: [virtfoundry/core CODE_OF_CONDUCT.md](https://github.com/virtfoundry/core/blob/main/CODE_OF_CONDUCT.md).
+
+Report violations to maintainers in [MAINTAINERS.md](MAINTAINERS.md) or [conduct@cncf.io](mailto:conduct@cncf.io).
