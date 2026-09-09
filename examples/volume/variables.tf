@@ -20,26 +20,21 @@ variable "tenant_id" {
 }
 
 variable "template_id" {
-  type        = string
-  description = "VM template UUID (e.g. cirros)"
+  type = string
 }
 
 variable "service_offering_id" {
-  type        = string
-  description = "Service offering UUID (e.g. small)"
+  type = string
 }
 
 variable "security_group_id" {
-  type        = string
-  description = "Default security group UUID for public IP access"
+  type = string
 }
 
 variable "vm_name" {
-  type        = string
-  description = "Unique VM slug for this test run"
+  type = string
 }
 
-variable "dedicated_cpu" {
-  type    = bool
-  default = false
+variable "volume_name" {
+  type = string
 }

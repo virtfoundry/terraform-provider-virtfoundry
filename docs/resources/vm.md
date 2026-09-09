@@ -46,12 +46,13 @@ resource "virtfoundry_vm" "web" {
 | `name` | String | yes | VM name (slug) within the tenant namespace. Forces replacement. |
 | `display_name` | String | no | Human-readable name. |
 | `template_id` | String | no | VM template UUID. Forces replacement. |
-| `service_offering_id` | String | no | Service offering UUID or name (e.g. `small`). Forces replacement. |
+| `service_offering_id` | String | no | Service offering UUID or name (e.g. `small`). Changing this resizes in place: the provider stops the VM if needed, PATCHes, then returns to `desired_state`. |
 | `public_ip` | Boolean | no | Attach shared public network (requires `security_group_ids`). |
 | `network_ids` | List(String) | no | Private network UUIDs. Default VPC subnet is used when omitted. |
 | `security_group_ids` | List(String) | no | Security group UUIDs. Required when `public_ip = true`. |
 | `ssh_key_id` | String | no | SSH key UUID for cloud-init. |
-| `data_volume_id` | String | no | Extra data volume UUID. |
+| `data_volume_id` | String | no | Extra data volume UUID at deploy time. |
+| `dedicated_cpu` | Boolean | no | Guaranteed CPU. Forces replacement. |
 | `expose_ssh` | Boolean | no | Expose SSH via NodePort on the cluster. |
 | `desired_state` | String | no | `running` or `stopped`. Default: API default. |
 | `tenant_id` | String | no | Tenant UUID. Defaults to provider `tenant_id`. |

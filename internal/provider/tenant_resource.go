@@ -130,11 +130,20 @@ func (r *tenantResource) Update(_ context.Context, _ resource.UpdateRequest, res
 	)
 }
 
-func (r *tenantResource) Delete(_ context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
-	resp.Diagnostics.AddError(
-		"Delete not supported",
-		"The VirtFoundry API does not support deleting tenants via Terraform.",
-	)
+func (r *tenantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.Diagnostics.Append(requireRootClient(r.client)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state tenantModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	err := r.client.DeleteTenant(ctx, state.ID.ValueString())
+	if err != nil && !isNotFound(err) {
+		resp.Diagnostics.AddError("Delete tenant failed", err.Error())
+	}
 }
 
 func (r *tenantResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

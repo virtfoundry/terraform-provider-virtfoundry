@@ -179,6 +179,8 @@ func (p *virtfoundryProvider) Resources(_ context.Context) []func() resource.Res
 		NewUserResource,
 		NewRoleResource,
 		NewAPIKeyResource,
+		NewVolumeAttachmentResource,
+		NewServiceOfferingResource,
 	}
 }
 

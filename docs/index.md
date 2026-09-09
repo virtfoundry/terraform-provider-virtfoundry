@@ -18,7 +18,7 @@ terraform {
   required_providers {
     virtfoundry = {
       source  = "virtfoundry/virtfoundry"
-      version = "~> 0.2"
+      version = "~> 0.3"
     }
   }
 }
@@ -59,6 +59,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [virtfoundry_network](resources/network.md) | Subnet / network in a VPC |
 | [virtfoundry_security_group](resources/security_group.md) | Security group + rules |
 | [virtfoundry_volume](resources/volume.md) | Block volume |
+| [virtfoundry_volume_attachment](resources/volume_attachment.md) | Attach volume to VM |
 | [virtfoundry_volume_snapshot](resources/volume_snapshot.md) | Volume snapshot |
 | [virtfoundry_vm_template](resources/vm_template.md) | VM template (container or ISO) |
 | [virtfoundry_vm](resources/vm.md) | Virtual machine |
@@ -67,6 +68,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [virtfoundry_user](resources/user.md) | IAM user |
 | [virtfoundry_role](resources/role.md) | IAM role |
 | [virtfoundry_api_key](resources/api_key.md) | API key (secret shown once) |
+| [virtfoundry_service_offering](resources/service_offering.md) | Service offering (root) |
 
 ## Data sources
 
@@ -87,7 +89,10 @@ See the [examples/](https://github.com/virtfoundry/terraform-provider-virtfoundr
 
 - **provider** — minimal provider configuration
 - **vm** — single VM with public IP
-- **full-stack** — VPC, network, security group, SSH key, and VM
+- **volume** — VM, volume, and attachment
+- **offering** — root service offering
+- **tenant** — throwaway tenant
+- **full-stack** — VPC, network, security group, SSH key, VM, and volume
 - **tenant-with-iam** — tenant bootstrap with users and roles
 
 ## Links

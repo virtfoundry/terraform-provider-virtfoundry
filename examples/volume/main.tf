@@ -18,23 +18,32 @@ provider "virtfoundry" {
 
 resource "virtfoundry_vm" "test" {
   name                = var.vm_name
-  display_name        = "Terraform test VM"
+  display_name        = "Terraform volume test VM"
   template_id         = var.template_id
   service_offering_id = var.service_offering_id
-  dedicated_cpu       = var.dedicated_cpu
   public_ip           = true
   security_group_ids  = [var.security_group_id]
   desired_state       = "running"
+}
+
+resource "virtfoundry_volume" "data" {
+  name    = var.volume_name
+  size_gi = 1
+}
+
+resource "virtfoundry_volume_attachment" "data" {
+  vm_name   = virtfoundry_vm.test.name
+  volume_id = virtfoundry_volume.data.id
 }
 
 output "vm_id" {
   value = virtfoundry_vm.test.id
 }
 
-output "vm_ip" {
-  value = virtfoundry_vm.test.ip
+output "volume_id" {
+  value = virtfoundry_volume.data.id
 }
 
-output "vm_state" {
-  value = virtfoundry_vm.test.state
+output "attachment_id" {
+  value = virtfoundry_volume_attachment.data.id
 }

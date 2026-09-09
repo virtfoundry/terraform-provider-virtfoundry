@@ -243,6 +243,14 @@ func (c *Client) GetVolume(ctx context.Context, tenantID, id string) (*Volume, e
 	return findByID(items, id, func(v Volume) string { return v.ID })
 }
 
+func (c *Client) DeleteVolume(ctx context.Context, tenantID, id string) error {
+	return c.jsonRequest(ctx, tenantID, http.MethodDelete, "/api/v1/volumes/"+id, nil, nil)
+}
+
+func (c *Client) DeleteTenant(ctx context.Context, id string) error {
+	return c.jsonRequest(ctx, "", http.MethodDelete, "/api/v1/tenants/"+id, nil, nil)
+}
+
 // ErrDeleteNotSupported indicates the API has no delete endpoint for this resource type.
 var ErrDeleteNotSupported = fmt.Errorf("VirtFoundry API does not support deleting this resource type yet")
 
@@ -463,7 +471,23 @@ func (c *Client) GetSSHKey(ctx context.Context, tenantID, id string) (*SSHKey, e
 	return findByID(items, id, func(k SSHKey) string { return k.ID })
 }
 
-// --- Service offerings (read-only) ---
+// --- Service offerings ---
+
+type CreateServiceOfferingInput struct {
+	Name         string `json:"name"`
+	DisplayName  string `json:"display_name,omitempty"`
+	CPU          int    `json:"cpu"`
+	MemoryMi     int64  `json:"memory_mi"`
+	DedicatedCPU bool   `json:"dedicated_cpu,omitempty"`
+}
+
+type UpdateServiceOfferingInput struct {
+	DisplayName  string `json:"display_name,omitempty"`
+	CPU          int    `json:"cpu,omitempty"`
+	MemoryMi     int64  `json:"memory_mi,omitempty"`
+	State        string `json:"state,omitempty"`
+	DedicatedCPU *bool  `json:"dedicated_cpu,omitempty"`
+}
 
 func (c *Client) ListServiceOfferings(ctx context.Context) ([]ServiceOffering, error) {
 	var out struct {
@@ -473,4 +497,36 @@ func (c *Client) ListServiceOfferings(ctx context.Context) ([]ServiceOffering, e
 		return nil, err
 	}
 	return out.ServiceOfferings, nil
+}
+
+func (c *Client) GetServiceOffering(ctx context.Context, id string) (*ServiceOffering, error) {
+	items, err := c.ListServiceOfferings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return findByID(items, id, func(o ServiceOffering) string { return o.ID })
+}
+
+func (c *Client) CreateServiceOffering(ctx context.Context, in CreateServiceOfferingInput) (*ServiceOffering, error) {
+	var out struct {
+		ServiceOffering ServiceOffering `json:"service_offering"`
+	}
+	if err := c.jsonRequest(ctx, "", http.MethodPost, "/api/v1/service-offerings", in, &out); err != nil {
+		return nil, err
+	}
+	return &out.ServiceOffering, nil
+}
+
+func (c *Client) UpdateServiceOffering(ctx context.Context, id string, in UpdateServiceOfferingInput) (*ServiceOffering, error) {
+	var out struct {
+		ServiceOffering ServiceOffering `json:"service_offering"`
+	}
+	if err := c.jsonRequest(ctx, "", http.MethodPatch, "/api/v1/service-offerings/"+id, in, &out); err != nil {
+		return nil, err
+	}
+	return &out.ServiceOffering, nil
+}
+
+func (c *Client) DeleteServiceOffering(ctx context.Context, id string) error {
+	return c.jsonRequest(ctx, "", http.MethodDelete, "/api/v1/service-offerings/"+id, nil, nil)
 }

@@ -124,13 +124,14 @@ type SSHKey struct {
 
 // ServiceOffering is a CPU/memory catalog entry.
 type ServiceOffering struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	DisplayName string    `json:"display_name"`
-	CPU         int       `json:"cpu"`
-	MemoryMi    int64     `json:"memory_mi"`
-	State       string    `json:"state"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	DisplayName  string    `json:"display_name"`
+	CPU          int       `json:"cpu"`
+	MemoryMi     int64     `json:"memory_mi"`
+	DedicatedCPU bool      `json:"dedicated_cpu"`
+	State        string    `json:"state"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // VMSSHInfo describes NodePort SSH exposure for a VM.
@@ -185,4 +186,5 @@ type VM struct {
 	Template          string `json:"template"`
 	IP                string `json:"ip"`
 	ServiceOfferingID string `json:"service_offering_id"`
+	DedicatedCPU      bool   `json:"dedicated_cpu"`
 }

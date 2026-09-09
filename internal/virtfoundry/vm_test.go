@@ -90,4 +90,10 @@ func TestStateMatches(t *testing.T) {
 			t.Fatalf("%s/%s", tc.actual, tc.want)
 		}
 	}
+	if virtfoundry.IsFullyRunning("Starting") {
+		t.Fatal("Starting is not fully running")
+	}
+	if !virtfoundry.IsFullyRunning("Running") {
+		t.Fatal("Running should be fully running")
+	}
 }

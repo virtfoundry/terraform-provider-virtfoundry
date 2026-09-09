@@ -1,6 +1,6 @@
 # Full stack example
 
-End-to-end infrastructure: VPC, private network, security group, SSH key, and VM.
+End-to-end infrastructure: VPC, private network, security group, SSH key, VM, volume, and attachment.
 
 ## What it creates
 
@@ -11,6 +11,8 @@ End-to-end infrastructure: VPC, private network, security group, SSH key, and VM
 | `virtfoundry_security_group.ssh` | Allow SSH (port 22) |
 | `virtfoundry_ssh_key.admin` | Generated Ed25519 key pair |
 | `virtfoundry_vm.app` | Application VM on private network |
+| `virtfoundry_volume.data` | 1 GiB data volume |
+| `virtfoundry_volume_attachment.data` | Hot-plug attach |
 
 Data sources resolve the service offering and VM template by name.
 

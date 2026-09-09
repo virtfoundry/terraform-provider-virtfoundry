@@ -44,6 +44,7 @@ type vmModel struct {
 	SSHNodePort       types.Int64  `tfsdk:"ssh_node_port"`
 	SSHExposed        types.Bool   `tfsdk:"ssh_exposed"`
 	DesiredState      types.String `tfsdk:"desired_state"`
+	DedicatedCPU      types.Bool   `tfsdk:"dedicated_cpu"`
 	State             types.String `tfsdk:"state"`
 	IP                types.String `tfsdk:"ip"`
 	CPU               types.Int64  `tfsdk:"cpu"`
@@ -96,10 +97,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			},
 			"service_offering_id": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Service offering UUID or name (e.g. `small`).",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				MarkdownDescription: "Service offering UUID or name (e.g. `small`). Changing this resizes the VM in place.",
 			},
 			"public_ip": schema.BoolAttribute{
 				Optional:            true,
@@ -136,6 +134,15 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				MarkdownDescription: "Optional data volume UUID to attach at deploy time.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"dedicated_cpu": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Guaranteed CPU (request equals limit). Forces replacement. Offerings with dedicated CPU also enable this.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(),
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"expose_ssh": schema.BoolAttribute{
@@ -295,12 +302,42 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	var vm *virtfoundry.VM
 	var err error
 
-	if !plan.DisplayName.Equal(state.DisplayName) {
-		display := ""
-		if !plan.DisplayName.IsNull() {
-			display = plan.DisplayName.ValueString()
+	resize := !plan.ServiceOfferingID.Equal(state.ServiceOfferingID) && !plan.ServiceOfferingID.IsNull()
+	if resize {
+		current, getErr := r.client.GetVM(ctx, tenantID, name)
+		if getErr != nil {
+			resp.Diagnostics.AddError("Read VM failed", getErr.Error())
+			return
 		}
-		vm, err = r.client.UpdateVM(ctx, tenantID, name, display, 0, 0)
+		if virtfoundry.StateMatches(current.State, "running") && !virtfoundry.IsFullyRunning(current.State) {
+			ready, waitErr := r.client.WaitForVMExactRunning(ctx, tenantID, name, 10*time.Minute)
+			if waitErr != nil {
+				resp.Diagnostics.AddError("Wait for VM to finish starting before resize failed", waitErr.Error())
+				return
+			}
+			current = ready
+		}
+		if virtfoundry.IsFullyRunning(current.State) {
+			if _, stopErr := r.client.StopVM(ctx, tenantID, name); stopErr != nil {
+				resp.Diagnostics.AddError("Stop VM before resize failed", stopErr.Error())
+				return
+			}
+			if _, waitErr := r.client.WaitForVMState(ctx, tenantID, name, "stopped", 5*time.Minute); waitErr != nil {
+				resp.Diagnostics.AddError("Wait for stopped state before resize failed", waitErr.Error())
+				return
+			}
+		}
+	}
+
+	if !plan.DisplayName.Equal(state.DisplayName) || resize {
+		in := virtfoundry.UpdateVMInput{}
+		if !plan.DisplayName.Equal(state.DisplayName) && !plan.DisplayName.IsNull() {
+			in.DisplayName = plan.DisplayName.ValueString()
+		}
+		if resize {
+			in.ServiceOfferingID = plan.ServiceOfferingID.ValueString()
+		}
+		vm, err = r.client.UpdateVM(ctx, tenantID, name, in)
 		if err != nil {
 			resp.Diagnostics.AddError("Update VM failed", err.Error())
 			return
@@ -424,6 +461,9 @@ func deployInputFromPlan(ctx context.Context, plan vmModel) (virtfoundry.DeployV
 	if !plan.ExposeSSH.IsNull() {
 		in.ExposeSSH = plan.ExposeSSH.ValueBool()
 	}
+	if !plan.DedicatedCPU.IsNull() {
+		in.DedicatedCPU = plan.DedicatedCPU.ValueBool()
+	}
 	return in, diags
 }
 
@@ -503,6 +543,7 @@ func vmToModel(vm *virtfoundry.VM, cfg vmModel, ssh *virtfoundry.VMSSHInfo) vmMo
 		ExposeSSH:         cfg.ExposeSSH,
 		SSHNodePort:       cfg.SSHNodePort,
 		DesiredState:      types.StringValue(stringValue(cfg.DesiredState, "running")),
+		DedicatedCPU:      types.BoolValue(vm.DedicatedCPU),
 	}
 	if ssh != nil {
 		out.SSHExposed = types.BoolValue(ssh.Exposed)

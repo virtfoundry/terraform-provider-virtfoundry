@@ -22,21 +22,23 @@ type serviceOfferingsModel struct {
 }
 
 type serviceOfferingModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	DisplayName types.String `tfsdk:"display_name"`
-	CPU         types.Int64  `tfsdk:"cpu"`
-	MemoryMi    types.Int64  `tfsdk:"memory_mi"`
-	State       types.String `tfsdk:"state"`
+	ID           types.String `tfsdk:"id"`
+	Name         types.String `tfsdk:"name"`
+	DisplayName  types.String `tfsdk:"display_name"`
+	CPU          types.Int64  `tfsdk:"cpu"`
+	MemoryMi     types.Int64  `tfsdk:"memory_mi"`
+	DedicatedCPU types.Bool   `tfsdk:"dedicated_cpu"`
+	State        types.String `tfsdk:"state"`
 }
 
 var offeringAttrTypes = map[string]attr.Type{
-	"id":           types.StringType,
-	"name":         types.StringType,
-	"display_name": types.StringType,
-	"cpu":          types.Int64Type,
-	"memory_mi":    types.Int64Type,
-	"state":        types.StringType,
+	"id":            types.StringType,
+	"name":          types.StringType,
+	"display_name":  types.StringType,
+	"cpu":           types.Int64Type,
+	"memory_mi":     types.Int64Type,
+	"dedicated_cpu": types.BoolType,
+	"state":         types.StringType,
 }
 
 func NewServiceOfferingsDataSource() datasource.DataSource { return &serviceOfferingsDataSource{} }
@@ -53,12 +55,13 @@ func (d *serviceOfferingsDataSource) Schema(_ context.Context, _ datasource.Sche
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":           schema.StringAttribute{Computed: true},
-						"name":         schema.StringAttribute{Computed: true},
-						"display_name": schema.StringAttribute{Computed: true},
-						"cpu":          schema.Int64Attribute{Computed: true},
-						"memory_mi":    schema.Int64Attribute{Computed: true},
-						"state":        schema.StringAttribute{Computed: true},
+						"id":            schema.StringAttribute{Computed: true},
+						"name":          schema.StringAttribute{Computed: true},
+						"display_name":  schema.StringAttribute{Computed: true},
+						"cpu":           schema.Int64Attribute{Computed: true},
+						"memory_mi":     schema.Int64Attribute{Computed: true},
+						"dedicated_cpu": schema.BoolAttribute{Computed: true},
+						"state":         schema.StringAttribute{Computed: true},
 					},
 				},
 			},
@@ -91,12 +94,13 @@ func (d *serviceOfferingsDataSource) Read(ctx context.Context, _ datasource.Read
 	elems := make([]attr.Value, len(items))
 	for i, o := range items {
 		obj, diags := types.ObjectValue(offeringAttrTypes, map[string]attr.Value{
-			"id":           types.StringValue(o.ID),
-			"name":         types.StringValue(o.Name),
-			"display_name": types.StringValue(o.DisplayName),
-			"cpu":          types.Int64Value(int64(o.CPU)),
-			"memory_mi":    types.Int64Value(o.MemoryMi),
-			"state":        types.StringValue(o.State),
+			"id":            types.StringValue(o.ID),
+			"name":          types.StringValue(o.Name),
+			"display_name":  types.StringValue(o.DisplayName),
+			"cpu":           types.Int64Value(int64(o.CPU)),
+			"memory_mi":     types.Int64Value(o.MemoryMi),
+			"dedicated_cpu": types.BoolValue(o.DedicatedCPU),
+			"state":         types.StringValue(o.State),
 		})
 		resp.Diagnostics.Append(diags...)
 		elems[i] = obj

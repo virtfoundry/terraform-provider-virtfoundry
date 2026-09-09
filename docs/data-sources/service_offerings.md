@@ -29,4 +29,4 @@ output "offerings" {
 
 | Name | Description |
 |------|-------------|
-| `offerings` | List of objects with `id`, `name`, `cpu`, `memory_mi`. |
+| `offerings` | List of objects with `id`, `name`, `display_name`, `cpu`, `memory_mi`, `dedicated_cpu`, `state`. |

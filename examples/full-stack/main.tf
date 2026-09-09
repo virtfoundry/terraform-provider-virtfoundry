@@ -4,7 +4,7 @@ terraform {
   required_providers {
     virtfoundry = {
       source  = "virtfoundry/virtfoundry"
-      version = "~> 0.2"
+      version = "~> 0.3"
     }
   }
 }
@@ -73,6 +73,16 @@ resource "virtfoundry_vm" "app" {
   desired_state       = "running"
 }
 
+resource "virtfoundry_volume" "data" {
+  name    = var.volume_name
+  size_gi = 1
+}
+
+resource "virtfoundry_volume_attachment" "data" {
+  vm_name   = virtfoundry_vm.app.name
+  volume_id = virtfoundry_volume.data.id
+}
+
 output "vpc_id" {
   value = virtfoundry_vpc.main.id
 }
@@ -103,4 +113,8 @@ output "ssh_node_port" {
 
 output "ssh_exposed" {
   value = virtfoundry_vm.app.ssh_exposed
+}
+
+output "volume_id" {
+  value = virtfoundry_volume.data.id
 }

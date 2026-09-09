@@ -14,6 +14,7 @@ NET_NAME="${NET_NAME:-tf-net-${SUFFIX}}"
 SG_NAME="${SG_NAME:-tf-sg-${SUFFIX}}"
 SSH_NAME="${SSH_NAME:-tf-ssh-${SUFFIX}}"
 VM_NAME="${VM_NAME:-tf-vm-${SUFFIX}}"
+VOLUME_NAME="${VOLUME_NAME:-tf-vol-${SUFFIX}}"
 EXPOSE_SSH="${EXPOSE_SSH:-false}"
 # Spread tenants across 10.42–10.241 to reduce CIDR collisions between runs.
 VPC_OCTET=$((42 + SUFFIX % 200))
@@ -35,7 +36,8 @@ cleanup() {
       -var="endpoint=$ENDPOINT" -var="username=$USER" -var="password=$PASS" \
       -var="tenant_id=${TENANT_ID:-}" -var="vpc_name=$VPC_NAME" -var="vpc_cidr=$VPC_CIDR" \
       -var="network_name=$NET_NAME" -var="security_group_name=$SG_NAME" \
-      -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" -var="expose_ssh=$EXPOSE_SSH") || true
+      -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" \
+      -var="volume_name=${VOLUME_NAME:-}" -var="expose_ssh=$EXPOSE_SSH") || true
   fi
 }
 trap cleanup EXIT
@@ -53,7 +55,7 @@ TENANT_ID="$(curl -sf "$ENDPOINT/api/v1/tenants" -H "Authorization: Bearer $TOKE
   | python3 -c 'import sys,json; print(json.load(sys.stdin)["tenants"][0]["id"])')"
 
 echo "    tenant=$TENANT_ID"
-echo "    vpc=$VPC_NAME cidr=$VPC_CIDR net=$NET_NAME sg=$SG_NAME ssh=$SSH_NAME vm=$VM_NAME"
+echo "    vpc=$VPC_NAME cidr=$VPC_CIDR net=$NET_NAME sg=$SG_NAME ssh=$SSH_NAME vm=$VM_NAME vol=$VOLUME_NAME"
 
 export TF_CLI_CONFIG_FILE="$ROOT/examples/provider/.terraformrc"
 
@@ -73,6 +75,7 @@ terraform apply -auto-approve -input=false \
   -var="security_group_name=$SG_NAME" \
   -var="ssh_key_name=$SSH_NAME" \
   -var="vm_name=$VM_NAME" \
+  -var="volume_name=$VOLUME_NAME" \
   -var="expose_ssh=$EXPOSE_SSH"
 
 assert_output() {
@@ -93,6 +96,7 @@ assert_output network_id
 assert_output security_group_id
 assert_output ssh_key_id
 assert_output vm_id
+assert_output volume_id
 
 VM_IP="$(terraform output -raw vm_ip 2>/dev/null || true)"
 if [[ -z "$VM_IP" || "$VM_IP" == "null" ]]; then
@@ -104,7 +108,8 @@ if [[ -z "$VM_IP" || "$VM_IP" == "null" ]]; then
       -var="endpoint=$ENDPOINT" -var="username=$USER" -var="password=$PASS" \
       -var="tenant_id=$TENANT_ID" -var="vpc_name=$VPC_NAME" -var="vpc_cidr=$VPC_CIDR" \
       -var="network_name=$NET_NAME" -var="security_group_name=$SG_NAME" \
-      -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" -var="expose_ssh=$EXPOSE_SSH" >/dev/null
+      -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" \
+      -var="volume_name=$VOLUME_NAME" -var="expose_ssh=$EXPOSE_SSH" >/dev/null
     VM_IP="$(terraform output -raw vm_ip 2>/dev/null || true)"
     if [[ -n "$VM_IP" && "$VM_IP" != "null" ]]; then
       echo "  ok vm_ip=$VM_IP"
@@ -131,6 +136,8 @@ for resource in \
   'virtfoundry_security_group.ssh' \
   'virtfoundry_ssh_key.admin' \
   'virtfoundry_vm.app' \
+  'virtfoundry_volume.data' \
+  'virtfoundry_volume_attachment.data' \
   'data.virtfoundry_service_offerings.catalog' \
   'data.virtfoundry_vm_templates.catalog'; do
   if ! grep -qx "$resource" /tmp/tf-full-stack-state.txt; then
@@ -145,7 +152,8 @@ if ! terraform plan -detailed-exitcode -input=false \
   -var="endpoint=$ENDPOINT" -var="username=$USER" -var="password=$PASS" \
   -var="tenant_id=$TENANT_ID" -var="vpc_name=$VPC_NAME" -var="vpc_cidr=$VPC_CIDR" \
   -var="network_name=$NET_NAME" -var="security_group_name=$SG_NAME" \
-  -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" >/tmp/tf-plan.txt; then
+  -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" \
+  -var="volume_name=$VOLUME_NAME" >/tmp/tf-plan.txt; then
   echo "FAIL: plan wants changes after apply"
   cat /tmp/tf-plan.txt
   exit 1
@@ -166,6 +174,7 @@ terraform destroy -auto-approve -input=false \
   -var="security_group_name=$SG_NAME" \
   -var="ssh_key_name=$SSH_NAME" \
   -var="vm_name=$VM_NAME" \
+  -var="volume_name=$VOLUME_NAME" \
   -var="expose_ssh=$EXPOSE_SSH"
 
 trap - EXIT

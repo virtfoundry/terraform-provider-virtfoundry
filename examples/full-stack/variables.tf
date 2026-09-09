@@ -64,6 +64,11 @@ variable "vm_name" {
   default = "tf-demo-vm"
 }
 
+variable "volume_name" {
+  type    = string
+  default = "tf-demo-vol"
+}
+
 variable "vm_display_name" {
   type    = string
   default = "Terraform full-stack demo"

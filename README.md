@@ -18,7 +18,7 @@ terraform {
   required_providers {
     virtfoundry = {
       source  = "virtfoundry/virtfoundry"
-      version = "~> 0.2"
+      version = "~> 0.3"
     }
   }
 }
@@ -91,6 +91,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [`virtfoundry_network`](docs/resources/network.md) | Subnet in a VPC |
 | [`virtfoundry_security_group`](docs/resources/security_group.md) | Firewall rules |
 | [`virtfoundry_volume`](docs/resources/volume.md) | Block storage volume |
+| [`virtfoundry_volume_attachment`](docs/resources/volume_attachment.md) | Attach a volume to a VM |
 | [`virtfoundry_volume_snapshot`](docs/resources/volume_snapshot.md) | Volume snapshot |
 | [`virtfoundry_vm_template`](docs/resources/vm_template.md) | VM template (container or ISO) |
 | [`virtfoundry_vm`](docs/resources/vm.md) | Virtual machine |
@@ -99,6 +100,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [`virtfoundry_user`](docs/resources/user.md) | IAM user |
 | [`virtfoundry_role`](docs/resources/role.md) | IAM role |
 | [`virtfoundry_api_key`](docs/resources/api_key.md) | API key (secret shown once) |
+| [`virtfoundry_service_offering`](docs/resources/service_offering.md) | Service offering catalog (root) |
 
 ## Data sources
 
@@ -119,7 +121,10 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 |-----------|-------------|
 | [`examples/provider/`](examples/provider/) | Minimal provider configuration |
 | [`examples/vm/`](examples/vm/) | Single VM with public IP |
-| [`examples/full-stack/`](examples/full-stack/) | VPC + network + SG + SSH key + VM |
+| [`examples/volume/`](examples/volume/) | VM + volume + attachment |
+| [`examples/offering/`](examples/offering/) | Root service offering |
+| [`examples/tenant/`](examples/tenant/) | Throwaway tenant create/delete |
+| [`examples/full-stack/`](examples/full-stack/) | VPC + network + SG + SSH key + VM + volume |
 | [`examples/tenant-with-iam/`](examples/tenant-with-iam/) | Tenant bootstrap with users and roles |
 
 Reusable modules: [`modules/tenant/`](modules/tenant/), [`modules/tenant-iam/`](modules/tenant-iam/).
@@ -139,8 +144,11 @@ terraform import virtfoundry_vpc.main <vpc_id>
 make build
 make test
 make install   # ~/.terraform.d/plugins for local dev_overrides
-make test-integration       # quick VM-only apply/destroy
+make test-integration       # VM apply, in-place resize, destroy
 make test-integration-full  # full stack apply/destroy
+./scripts/test-volume.sh
+./scripts/test-offering.sh
+./scripts/test-tenant.sh
 ```
 
 Local Terraform with dev overrides:

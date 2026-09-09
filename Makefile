@@ -1,4 +1,4 @@
-.PHONY: build test install fmt vet lint test-integration test-integration-full docs
+.PHONY: build test install fmt vet lint test-integration test-integration-full test-integration-volume test-integration-offering test-integration-tenant docs
 
 PROVIDER_NAME := virtfoundry
 REGISTRY_HOST := registry.terraform.io
@@ -34,5 +34,17 @@ test-integration: build
 test-integration-full: build
 	@chmod +x scripts/test-full-stack.sh
 	./scripts/test-full-stack.sh
+
+test-integration-volume: build
+	@chmod +x scripts/test-volume.sh
+	./scripts/test-volume.sh
+
+test-integration-offering: build
+	@chmod +x scripts/test-offering.sh
+	./scripts/test-offering.sh
+
+test-integration-tenant: build
+	@chmod +x scripts/test-tenant.sh
+	./scripts/test-tenant.sh
 
 lint: fmt vet test

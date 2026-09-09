@@ -23,10 +23,29 @@ type DeployVMInput struct {
 	SSHKeyID          string   `json:"ssh_key_id,omitempty"`
 	DataVolumeID      string   `json:"data_volume_id,omitempty"`
 	ExposeSSH         bool     `json:"expose_ssh,omitempty"`
+	DedicatedCPU      bool     `json:"dedicated_cpu,omitempty"`
+}
+
+// UpdateVMInput is the PATCH /vms/{name} payload.
+type UpdateVMInput struct {
+	DisplayName       string `json:"display_name,omitempty"`
+	CPU               int    `json:"cpu,omitempty"`
+	MemoryMi          int64  `json:"memory_mi,omitempty"`
+	ServiceOfferingID string `json:"service_offering_id,omitempty"`
 }
 
 type vmNameRequest struct {
 	Name string `json:"name"`
+}
+
+func (c *Client) ListVMs(ctx context.Context, tenantID string) ([]VM, error) {
+	var out struct {
+		VMs []VM `json:"vms"`
+	}
+	if err := c.jsonRequest(ctx, tenantID, http.MethodGet, "/api/v1/vms", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.VMs, nil
 }
 
 // GetVM returns a VM by name within a tenant.
@@ -52,24 +71,34 @@ func (c *Client) DeployVM(ctx context.Context, tenantID string, in DeployVMInput
 }
 
 // UpdateVM patches VM metadata/resources.
-func (c *Client) UpdateVM(ctx context.Context, tenantID, name string, displayName string, cpu int, memoryMi int64) (*VM, error) {
-	body := map[string]any{}
-	if displayName != "" {
-		body["display_name"] = displayName
-	}
-	if cpu > 0 {
-		body["cpu"] = cpu
-	}
-	if memoryMi > 0 {
-		body["memory_mi"] = memoryMi
-	}
+func (c *Client) UpdateVM(ctx context.Context, tenantID, name string, in UpdateVMInput) (*VM, error) {
 	var out struct {
 		VM VM `json:"vm"`
 	}
-	if err := c.jsonRequest(ctx, tenantID, http.MethodPatch, "/api/v1/vms/"+name, body, &out); err != nil {
+	if err := c.jsonRequest(ctx, tenantID, http.MethodPatch, "/api/v1/vms/"+name, in, &out); err != nil {
 		return nil, err
 	}
 	return &out.VM, nil
+}
+
+type attachVolumeInput struct {
+	VolumeID string `json:"volume_id"`
+}
+
+// AttachVolume hot-plugs a volume onto a running VM.
+func (c *Client) AttachVolume(ctx context.Context, tenantID, vmName, volumeID string) (*Volume, error) {
+	var out struct {
+		Volume Volume `json:"volume"`
+	}
+	if err := c.jsonRequest(ctx, tenantID, http.MethodPost, "/api/v1/vms/"+vmName+"/volumes", attachVolumeInput{VolumeID: volumeID}, &out); err != nil {
+		return nil, err
+	}
+	return &out.Volume, nil
+}
+
+// DetachVolume removes a hot-plugged volume from a VM.
+func (c *Client) DetachVolume(ctx context.Context, tenantID, vmName, volumeID string) error {
+	return c.jsonRequest(ctx, tenantID, http.MethodDelete, "/api/v1/vms/"+vmName+"/volumes/"+volumeID, nil, nil)
 }
 
 // StartVM powers on a VM.
@@ -150,6 +179,31 @@ func (c *Client) WaitForVMState(ctx context.Context, tenantID, name, want string
 	}
 }
 
+// WaitForVMExactRunning polls until the guest is Running (not Starting).
+func (c *Client) WaitForVMExactRunning(ctx context.Context, tenantID, name string, timeout time.Duration) (*VM, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		vm, err := c.GetVM(ctx, tenantID, name)
+		if err != nil {
+			return nil, err
+		}
+		if IsFullyRunning(vm.State) {
+			return vm, nil
+		}
+		if StateMatches(vm.State, "stopped") {
+			return vm, nil
+		}
+		if time.Now().After(deadline) {
+			return vm, fmt.Errorf("timeout waiting for VM %q to reach Running (last=%q)", name, vm.State)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
 func stateMatches(actual, want string) bool {
 	return StateMatches(actual, want)
 }
@@ -165,4 +219,9 @@ func StateMatches(actual, want string) bool {
 	default:
 		return actual == want
 	}
+}
+
+// IsFullyRunning is true only when the guest reports Running (not Starting).
+func IsFullyRunning(actual string) bool {
+	return strings.ToLower(strings.TrimSpace(actual)) == "running"
 }

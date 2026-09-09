@@ -7,7 +7,7 @@ description: |-
 
 # virtfoundry_tenant (Resource)
 
-Creates a new tenant on the VirtFoundry platform. Requires **root** API credentials (no `tenant_id` on the provider). Tenants cannot be updated or deleted via the API — destroy removes Terraform state only.
+Creates a new tenant on the VirtFoundry platform. Requires **root** API credentials (no `tenant_id` on the provider). Destroy calls `DELETE /tenants/{id}` and removes the Kubernetes namespace. The default tenant cannot be deleted.
 
 ## Example Usage
 
