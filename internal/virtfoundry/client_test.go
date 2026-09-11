@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/virtfoundry/terraform-provider-virtfoundry/internal/virtfoundry"
@@ -74,5 +75,54 @@ func TestClientAPIKeyAuth(t *testing.T) {
 	client.SetAPIKey("vfd_live_test")
 	if err := client.PingAuth(context.Background()); err != nil {
 		t.Fatalf("PingAuth: %v", err)
+	}
+}
+
+func TestClientAPIErrorUsesJSONMessageOnly(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"bad request","secret":"do-not-leak"}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := virtfoundry.NewClient(srv.URL, false)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	err = client.Health(context.Background())
+	if err == nil {
+		t.Fatal("expected health error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "bad request") {
+		t.Fatalf("expected JSON error field in %q", msg)
+	}
+	if strings.Contains(msg, "do-not-leak") || strings.Contains(msg, `"secret"`) {
+		t.Fatalf("raw body leaked into diagnostics: %q", msg)
+	}
+}
+
+func TestClientAPIErrorOmitsNonJSONBody(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("stack-trace: sensitive"))
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := virtfoundry.NewClient(srv.URL, false)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	err = client.Health(context.Background())
+	if err == nil {
+		t.Fatal("expected health error")
+	}
+	if got := err.Error(); got != "API error: HTTP 500" {
+		t.Fatalf("got %q, want status-only message", got)
 	}
 }

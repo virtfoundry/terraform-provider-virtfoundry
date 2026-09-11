@@ -164,10 +164,33 @@ func (c *Client) do(ctx context.Context, method, path string, body io.Reader) (*
 }
 
 func apiError(resp *http.Response) error {
-	msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	text := strings.TrimSpace(string(msg))
-	if text == "" {
-		return fmt.Errorf("API error: HTTP %d", resp.StatusCode)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if msg := apiErrorMessage(body); msg != "" {
+		return fmt.Errorf("API error: HTTP %d: %s", resp.StatusCode, msg)
 	}
-	return fmt.Errorf("API error: HTTP %d: %s", resp.StatusCode, text)
+	return fmt.Errorf("API error: HTTP %d", resp.StatusCode)
+}
+
+// apiErrorMessage extracts a safe error string from a response body.
+// Only JSON object "error" / "message" string fields are returned — never the raw body.
+func apiErrorMessage(body []byte) string {
+	body = bytes.TrimSpace(body)
+	if len(body) == 0 || body[0] != '{' {
+		return ""
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return ""
+	}
+	for _, key := range []string{"error", "message"} {
+		if v, ok := payload[key]; ok {
+			if s, ok := v.(string); ok {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					return s
+				}
+			}
+		}
+	}
+	return ""
 }
