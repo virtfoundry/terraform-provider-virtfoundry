@@ -1,6 +1,6 @@
 variable "endpoint" {
   type    = string
-  default = "http://virtfoundry.homelab"
+  default = "https://virtfoundry.example.com"
 }
 
 variable "username" {
@@ -11,7 +11,6 @@ variable "username" {
 variable "password" {
   type      = string
   sensitive = true
-  default   = "virtfoundry"
 }
 
 variable "tenant_id" {
