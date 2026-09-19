@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -14,7 +15,10 @@ import (
 	"github.com/virtfoundry/terraform-provider-virtfoundry/internal/virtfoundry"
 )
 
-var _ provider.Provider = &virtfoundryProvider{}
+var (
+	_ provider.Provider                       = &virtfoundryProvider{}
+	_ provider.ProviderWithEphemeralResources = &virtfoundryProvider{}
+)
 
 type virtfoundryProvider struct {
 	version string
@@ -179,6 +183,13 @@ func (p *virtfoundryProvider) Resources(_ context.Context) []func() resource.Res
 		NewUserResource,
 		NewRoleResource,
 		NewAPIKeyResource,
+	}
+}
+
+func (p *virtfoundryProvider) EphemeralResources(_ context.Context) []func() ephemeral.EphemeralResource {
+	return []func() ephemeral.EphemeralResource{
+		NewEphemeralAPIKeyResource,
+		NewEphemeralSSHKeyResource,
 	}
 }
 

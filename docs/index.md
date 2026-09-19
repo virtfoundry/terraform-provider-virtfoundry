@@ -68,6 +68,13 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [virtfoundry_role](resources/role.md) | IAM role |
 | [virtfoundry_api_key](resources/api_key.md) | API key (secret shown once) |
 
+## Ephemeral Resources
+
+| Resource | Description |
+|----------|-------------|
+| [virtfoundry_api_key](ephemeral-resources/api_key.md) | Ephemeral API key (secret never in state) |
+| [virtfoundry_ssh_key](ephemeral-resources/ssh_key.md) | Ephemeral SSH key (private key never in state) |
+
 ## Data sources
 
 | Data source | Description |

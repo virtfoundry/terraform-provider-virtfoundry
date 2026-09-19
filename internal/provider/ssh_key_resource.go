@@ -39,7 +39,7 @@ func (r *sshKeyResource) Metadata(_ context.Context, _ resource.MetadataRequest,
 
 func (r *sshKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a VirtFoundry tenant SSH key. Register an existing public key or generate a new Ed25519 pair.",
+		MarkdownDescription: "Manages a VirtFoundry tenant SSH key. Register an existing public key or generate a new Ed25519 pair. Prefer `public_key` (BYO) — `generate` stores the private key in state until refresh; use ephemeral generation or external `tls_private_key` for production.",
 		Attributes: map[string]schema.Attribute{
 			"id":        schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"tenant_id": schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
@@ -53,11 +53,15 @@ func (r *sshKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"generate": schema.BoolAttribute{Optional: true, MarkdownDescription: "Generate a new key pair via the API.", PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplace()}},
+			"generate": schema.BoolAttribute{
+				Optional:            true,
+				MarkdownDescription: "Generate a new key pair via the API. Deprecated for production — prefer `public_key` with an externally generated key (`tls_private_key`). The PEM is only available at create and not persisted after refresh.",
+				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.RequiresReplace()},
+			},
 			"private_key_pem": schema.StringAttribute{
 				Computed:            true,
 				Sensitive:           true,
-				MarkdownDescription: "Generated private key PEM (only when `generate` is true).",
+				MarkdownDescription: "Generated private key PEM (only when `generate` is true). Sensitive; not persisted after refresh — store securely immediately.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"fingerprint": schema.StringAttribute{Computed: true},
@@ -138,7 +142,7 @@ func (r *sshKeyResource) Read(ctx context.Context, req resource.ReadRequest, res
 		resp.Diagnostics.AddError("Read SSH key failed", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, sshKeyToModel(key, state, state.PrivateKeyPEM.ValueString()))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, sshKeyToModel(key, state, ""))...)
 }
 
 func (r *sshKeyResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -177,10 +181,11 @@ func sshKeyToModel(k *virtfoundry.SSHKey, cfg sshKeyModel, privateKey string) ss
 		Fingerprint: types.StringValue(k.Fingerprint),
 		Generate:    cfg.Generate,
 	}
+	// Private key is write-once: only set on Create, never re-persisted on Read.
 	if privateKey != "" {
 		out.PrivateKeyPEM = types.StringValue(privateKey)
-	} else if !cfg.PrivateKeyPEM.IsNull() {
-		out.PrivateKeyPEM = cfg.PrivateKeyPEM
+	} else {
+		out.PrivateKeyPEM = types.StringNull()
 	}
 	if !cfg.TenantID.IsNull() && cfg.TenantID.ValueString() != "" {
 		out.TenantID = cfg.TenantID

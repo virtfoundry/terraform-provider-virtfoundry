@@ -39,7 +39,7 @@ func (r *apiKeyResource) Metadata(_ context.Context, _ resource.MetadataRequest,
 
 func (r *apiKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a VirtFoundry API key. The secret is only available at creation time.",
+		MarkdownDescription: "Manages a VirtFoundry API key. The secret is only available at creation time and not persisted on refresh. Store it securely; use write-only/ephemeral alternatives when available. See README Security section for state encryption guidance.",
 		Attributes: map[string]schema.Attribute{
 			"id":              schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"tenant_id":       schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
@@ -48,7 +48,12 @@ func (r *apiKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"expires_in_days": schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
 			"scopes":          schema.ListAttribute{ElementType: types.StringType, Optional: true, PlanModifiers: []planmodifier.List{listplanmodifier.RequiresReplace()}},
 			"prefix":          schema.StringAttribute{Computed: true},
-			"secret":          schema.StringAttribute{Computed: true, Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"secret": schema.StringAttribute{
+				Computed:            true,
+				Sensitive:           true,
+				MarkdownDescription: "Full API key secret (sensitive; only at create). Not persisted after refresh — store securely. Requires TF >=1.11 with state encryption / ephemeral handling for full protection.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 		},
 	}
 }
@@ -113,7 +118,7 @@ func (r *apiKeyResource) Read(ctx context.Context, req resource.ReadRequest, res
 		resp.Diagnostics.AddError("Read API key failed", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, apiKeyToModel(key, state, state.Secret.ValueString()))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, apiKeyToModel(key, state, ""))...)
 }
 
 func (r *apiKeyResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -155,10 +160,13 @@ func apiKeyToModel(k *virtfoundry.APIKey, cfg apiKeyModel, secret string) apiKey
 	} else if !cfg.UserID.IsNull() {
 		out.UserID = cfg.UserID
 	}
+	// Secret is write-once: only set on Create, never re-persisted on Read.
+	// This ensures `terraform show -json` after refresh does not contain the secret.
+	// WriteOnly not usable here (Computed), so we explicitly null it on refresh.
 	if secret != "" {
 		out.Secret = types.StringValue(secret)
-	} else if !cfg.Secret.IsNull() {
-		out.Secret = cfg.Secret
+	} else {
+		out.Secret = types.StringNull()
 	}
 	if len(k.Scopes) > 0 {
 		elems := make([]types.String, len(k.Scopes))
