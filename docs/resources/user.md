@@ -52,3 +52,5 @@ resource "virtfoundry_user" "alice" {
 ```shell
 terraform import virtfoundry_user.alice <tenant_id>/<user_id>
 ```
+
+> **Note:** Imported users have `password = null` in state (write-only). Set `password` in config after import; changing it forces replacement.

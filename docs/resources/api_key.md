@@ -9,7 +9,7 @@ description: |-
 
 Creates an API key for programmatic access. The full secret (`vfd_live_...`) is returned **once** at creation — store it securely.
 
-> **Security:** `secret` is sensitive and only set at `Create`. It is **not persisted after refresh** (`terraform show -json` will be `null` after `terraform refresh`). Treat state as sensitive and enable [state encryption](https://developer.hashicorp.com/terraform/language/state/encryption) (TF >=1.11). See provider README Security section.
+> **Security:** `secret` is sensitive and only set at `Create`. It **briefly lives in state until the first `terraform refresh`/`apply -refresh-only`**, then is nulled (`terraform show -json` → `null`). For zero-state use `ephemeral "virtfoundry_api_key"` (TF >=1.10). Treat state as sensitive and enable [state encryption](https://developer.hashicorp.com/terraform/language/state/encryption) (TF >=1.11). See provider README Security section.
 
 ## Example Usage
 

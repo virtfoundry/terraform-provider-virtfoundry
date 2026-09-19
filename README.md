@@ -13,12 +13,12 @@ Add the provider to your Terraform configuration:
 
 ```hcl
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.11" # >=1.10 for ephemeral, >=1.0 fallback with reduced protection (write-once only)
 
   required_providers {
     virtfoundry = {
       source  = "virtfoundry/virtfoundry"
-      version = "~> 0.2"
+      version = "~> 0.3"
     }
   }
 }
@@ -147,7 +147,7 @@ terraform import virtfoundry_vpc.main <vpc_id>
 **Mitigations in this provider (since v0.3):**
 
 - `user.password` and `tenant.admin_password` are **write-only** (TF >=1.11, `framework v1.16+`) — never written to state/plan.
-- `api_key.secret` and `ssh_key.private_key_pem` are **write-once** (managed) — set only at `Create`, nulled on `Read`/`Refresh` — `terraform show -json` after refresh will not contain them. Prefer bringing your own public key (`public_key = file(...)` or `tls_private_key`) over `generate = true`.
+- `api_key.secret` and `ssh_key.private_key_pem` are **write-once** (managed) — set only at `Create`, **briefly in state until first `terraform refresh`/`apply -refresh-only`**, then nulled — `terraform show -json` after refresh will not contain them. Use `ephemeral` for zero-state. Prefer bringing your own public key (`public_key = file(...)` or `tls_private_key`) over `generate = true`.
 - **Ephemeral alternatives (TF >=1.10):** `ephemeral "virtfoundry_api_key"` and `ephemeral "virtfoundry_ssh_key"` — secrets are only in-memory and the resource is deleted on `Close` (never persisted). Use for CI, provisioners, or short-lived keys.
 - For full protection enable [Terraform state encryption](https://developer.hashicorp.com/terraform/language/state/encryption) (TF >=1.11) and encrypted backends (S3 SSE-KMS, Terraform Cloud encryption, etc.).
 

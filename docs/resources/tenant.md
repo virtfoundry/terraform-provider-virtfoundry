@@ -48,3 +48,5 @@ resource "virtfoundry_tenant" "acme" {
 ```shell
 terraform import virtfoundry_tenant.acme <tenant_id>
 ```
+
+> **Note:** `admin_password` is write-only — imported tenants have `null` in state. Provide the password in config if you need to force replacement; otherwise leave unset.
