@@ -1,10 +1,14 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.11" # WriteOnly/ephemeral require >=1.11/1.10; >=1.0 fallback has reduced protection
 
   required_providers {
     virtfoundry = {
       source  = "virtfoundry/virtfoundry"
-      version = "~> 0.2"
+      version = "~> 0.3"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
     }
   }
 }
@@ -56,9 +60,13 @@ resource "virtfoundry_security_group" "ssh" {
   }
 }
 
+resource "tls_private_key" "admin" {
+  algorithm = "ED25519"
+}
+
 resource "virtfoundry_ssh_key" "admin" {
-  name     = var.ssh_key_name
-  generate = true
+  name       = var.ssh_key_name
+  public_key = tls_private_key.admin.public_key_openssh
 }
 
 resource "virtfoundry_vm" "app" {
