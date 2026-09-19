@@ -1,9 +1,6 @@
 version: 2
 
-before:
-  hooks:
-    - go mod tidy
-
+# go mod tidy is validated in CI (test.yml) — release must use locked go.sum only
 builds:
   - env:
       - CGO_ENABLED=0
