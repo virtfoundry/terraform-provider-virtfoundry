@@ -33,7 +33,7 @@ func TestClientLoginAndPingAuth(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	client, err := virtfoundry.NewClient(srv.URL, false)
+	client, err := virtfoundry.NewClient(context.Background(), srv.URL, true)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestClientAPIKeyAuth(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	client, err := virtfoundry.NewClient(srv.URL, false)
+	client, err := virtfoundry.NewClient(context.Background(), srv.URL, true)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

@@ -7,10 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 const defaultTimeout = 30 * time.Second
@@ -24,13 +27,24 @@ type Client struct {
 }
 
 // NewClient builds a client for the given API endpoint.
-func NewClient(endpoint string, insecure bool) (*Client, error) {
+func NewClient(ctx context.Context, endpoint string, insecure bool) (*Client, error) {
 	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
 	if endpoint == "" {
 		return nil, fmt.Errorf("endpoint is required")
 	}
-	if _, err := url.ParseRequestURI(endpoint); err != nil {
+	parsedURL, err := url.ParseRequestURI(endpoint)
+	if err != nil {
 		return nil, fmt.Errorf("invalid endpoint URL: %w", err)
+	}
+
+	if parsedURL.Scheme == "http" && !insecure {
+		return nil, fmt.Errorf("HTTP endpoints are not allowed unless insecure=true is explicitly set; use HTTPS or set insecure=true")
+	}
+
+	if insecure && !isLoopbackHost(parsedURL.Hostname()) {
+		tflog.Warn(ctx, "TLS certificate verification disabled (insecure=true) for non-loopback host; this is insecure", map[string]any{
+			"host": parsedURL.Hostname(),
+		})
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -45,6 +59,17 @@ func NewClient(endpoint string, insecure bool) (*Client, error) {
 			Transport: transport,
 		},
 	}, nil
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip != nil && ip.IsLoopback() {
+		return true
+	}
+	return false
 }
 
 // SetAPIKey configures Bearer auth with a VirtFoundry API key (vfd_live_...).

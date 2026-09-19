@@ -127,7 +127,7 @@ func (p *virtfoundryProvider) Configure(ctx context.Context, req provider.Config
 		}
 	}
 
-	client, err := virtfoundry.NewClient(endpoint.ValueString(), insecure)
+	client, err := virtfoundry.NewClient(ctx, endpoint.ValueString(), insecure)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid endpoint", err.Error())
 		return
