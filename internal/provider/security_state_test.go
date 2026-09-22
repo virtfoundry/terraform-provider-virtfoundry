@@ -2,11 +2,18 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/virtfoundry/terraform-provider-virtfoundry/internal/virtfoundry"
 )
 
@@ -112,4 +119,194 @@ func TestSchemasHaveCorrectSensitivity(t *testing.T) {
 			}
 		}
 	}
+}
+
+func userObjectType(t *testing.T, ctx context.Context) tftypes.Object {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	(&userResource{}).Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	typ := schemaResp.Schema.Type().TerraformType(ctx)
+	obj, ok := typ.(tftypes.Object)
+	if !ok {
+		t.Fatalf("user schema TerraformType is not Object: %T", typ)
+	}
+	return obj
+}
+
+func tenantObjectType(t *testing.T, ctx context.Context) tftypes.Object {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	(&tenantResource{}).Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	typ := schemaResp.Schema.Type().TerraformType(ctx)
+	obj, ok := typ.(tftypes.Object)
+	if !ok {
+		t.Fatalf("tenant schema TerraformType is not Object: %T", typ)
+	}
+	return obj
+}
+
+func userSchemaRef(ctx context.Context) resource.SchemaResponse {
+	var resp resource.SchemaResponse
+	(&userResource{}).Schema(ctx, resource.SchemaRequest{}, &resp)
+	return resp
+}
+
+func tenantSchemaRef(ctx context.Context) resource.SchemaResponse {
+	var resp resource.SchemaResponse
+	(&tenantResource{}).Schema(ctx, resource.SchemaRequest{}, &resp)
+	return resp
+}
+
+func TestUserWriteOnlyPasswordReachesAPI(t *testing.T) {
+	ctx := context.Background()
+	sr := userSchemaRef(ctx)
+	ot := userObjectType(t, ctx)
+
+	configRaw := tftypes.NewValue(ot, map[string]tftypes.Value{
+		"id":        tftypes.NewValue(tftypes.String, nil),
+		"tenant_id": tftypes.NewValue(tftypes.String, "t1"),
+		"username":  tftypes.NewValue(tftypes.String, "alice"),
+		"password":  tftypes.NewValue(tftypes.String, "hunter2-correct"),
+		"email":     tftypes.NewValue(tftypes.String, nil),
+		"role_id":   tftypes.NewValue(tftypes.String, nil),
+		"role_name": tftypes.NewValue(tftypes.String, nil),
+		"role":      tftypes.NewValue(tftypes.String, nil),
+		"state":     tftypes.NewValue(tftypes.String, nil),
+	})
+	planRaw := tftypes.NewValue(ot, map[string]tftypes.Value{
+		"id":        tftypes.NewValue(tftypes.String, nil),
+		"tenant_id": tftypes.NewValue(tftypes.String, "t1"),
+		"username":  tftypes.NewValue(tftypes.String, "alice"),
+		"password":  tftypes.NewValue(tftypes.String, nil),
+		"email":     tftypes.NewValue(tftypes.String, nil),
+		"role_id":   tftypes.NewValue(tftypes.String, nil),
+		"role_name": tftypes.NewValue(tftypes.String, nil),
+		"role":      tftypes.NewValue(tftypes.String, nil),
+		"state":     tftypes.NewValue(tftypes.String, nil),
+	})
+
+	var receivedBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/users" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &receivedBody); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		if r.Header.Get("X-Tenant-ID") != "t1" {
+			t.Errorf("expected X-Tenant-ID=t1, got %q", r.Header.Get("X-Tenant-ID"))
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"user":{"id":"u1","username":"alice","role":"admin"}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := virtfoundry.NewClient(ctx, srv.URL, true)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	client.SetAPIKey("test-token")
+
+	r := &userResource{client: client}
+	req := resource.CreateRequest{
+		Config: tfsdk.Config{Schema: sr.Schema, Raw: configRaw},
+		Plan:   tfsdk.Plan{Schema: sr.Schema, Raw: planRaw},
+	}
+	var resp resource.CreateResponse
+	resp.State = tfsdk.State{
+		Schema: sr.Schema,
+		Raw:    tftypes.NewValue(ot, nil),
+	}
+
+	r.Create(ctx, req, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Create diagnostics: %v", resp.Diagnostics)
+	}
+	if receivedBody == nil {
+		t.Fatal("API was never called")
+	}
+	if got, _ := receivedBody["password"].(string); got != "hunter2-correct" {
+		t.Fatalf("password sent to API: got %q want %q (received body: %s)", got, "hunter2-correct", asJSON(receivedBody))
+	}
+	if got, _ := receivedBody["username"].(string); got != "alice" {
+		t.Fatalf("username sent to API: got %q want %q", got, "alice")
+	}
+}
+
+func TestTenantWriteOnlyAdminPasswordReachesAPI(t *testing.T) {
+	ctx := context.Background()
+	sr := tenantSchemaRef(ctx)
+	ot := tenantObjectType(t, ctx)
+
+	configRaw := tftypes.NewValue(ot, map[string]tftypes.Value{
+		"id":             tftypes.NewValue(tftypes.String, nil),
+		"name":           tftypes.NewValue(tftypes.String, "acme"),
+		"slug":           tftypes.NewValue(tftypes.String, "acme"),
+		"admin_password": tftypes.NewValue(tftypes.String, "rootpw-correct"),
+		"namespace":      tftypes.NewValue(tftypes.String, nil),
+		"state":          tftypes.NewValue(tftypes.String, nil),
+	})
+	planRaw := tftypes.NewValue(ot, map[string]tftypes.Value{
+		"id":             tftypes.NewValue(tftypes.String, nil),
+		"name":           tftypes.NewValue(tftypes.String, "acme"),
+		"slug":           tftypes.NewValue(tftypes.String, "acme"),
+		"admin_password": tftypes.NewValue(tftypes.String, nil),
+		"namespace":      tftypes.NewValue(tftypes.String, nil),
+		"state":          tftypes.NewValue(tftypes.String, nil),
+	})
+
+	var receivedBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/api/v1/tenants") || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &receivedBody); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"tenant":{"id":"t1","name":"acme","slug":"acme","namespace":"acme","state":"active"}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := virtfoundry.NewClient(ctx, srv.URL, true)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	client.SetAPIKey("test-token")
+
+	r := &tenantResource{client: client}
+	req := resource.CreateRequest{
+		Config: tfsdk.Config{Schema: sr.Schema, Raw: configRaw},
+		Plan:   tfsdk.Plan{Schema: sr.Schema, Raw: planRaw},
+	}
+	var resp resource.CreateResponse
+	resp.State = tfsdk.State{
+		Schema: sr.Schema,
+		Raw:    tftypes.NewValue(ot, nil),
+	}
+
+	r.Create(ctx, req, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Create diagnostics: %v", resp.Diagnostics)
+	}
+	if receivedBody == nil {
+		t.Fatal("API was never called")
+	}
+	if got, _ := receivedBody["admin_password"].(string); got != "rootpw-correct" {
+		t.Fatalf("admin_password sent to API: got %q want %q (received body: %s)", got, "rootpw-correct", asJSON(receivedBody))
+	}
+}
+
+func asJSON(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "<marshal-error>"
+	}
+	return string(b)
 }

@@ -87,12 +87,17 @@ func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var cfg tenantModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	in := virtfoundry.CreateTenantInput{Name: plan.Name.ValueString()}
 	if !plan.Slug.IsNull() {
 		in.Slug = plan.Slug.ValueString()
 	}
-	if !plan.AdminPassword.IsNull() {
-		in.AdminPassword = plan.AdminPassword.ValueString()
+	if !cfg.AdminPassword.IsNull() {
+		in.AdminPassword = cfg.AdminPassword.ValueString()
 	}
 	t, err := r.client.CreateTenant(ctx, in)
 	if err != nil {

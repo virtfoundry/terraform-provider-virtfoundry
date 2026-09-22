@@ -73,12 +73,17 @@ func (r *userResource) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var cfg userModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(r.client, plan.TenantID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	in := virtfoundry.CreateUserInput{Username: plan.Username.ValueString(), Password: plan.Password.ValueString()}
+	in := virtfoundry.CreateUserInput{Username: plan.Username.ValueString(), Password: cfg.Password.ValueString()}
 	if !plan.Email.IsNull() {
 		in.Email = plan.Email.ValueString()
 	}
