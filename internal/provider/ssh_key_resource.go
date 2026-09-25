@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -84,7 +85,11 @@ func (r *sshKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 	generate := !plan.Generate.IsNull() && plan.Generate.ValueBool()
-	hasPublic := !plan.PublicKey.IsNull() && plan.PublicKey.ValueString() != ""
+	publicKey := ""
+	if !plan.PublicKey.IsNull() {
+		publicKey = strings.TrimSpace(plan.PublicKey.ValueString())
+	}
+	hasPublic := publicKey != ""
 	if generate && hasPublic {
 		resp.Diagnostics.AddError("Conflicting SSH key input", "Set either `generate = true` or `public_key`, not both.")
 		return
@@ -108,7 +113,7 @@ func (r *sshKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 	} else {
 		key, err = r.client.RegisterSSHKey(ctx, tenantID, virtfoundry.RegisterSSHKeyInput{
 			Name:      plan.Name.ValueString(),
-			PublicKey: plan.PublicKey.ValueString(),
+			PublicKey: publicKey,
 		})
 	}
 	if err != nil {
@@ -174,10 +179,19 @@ func (r *sshKeyResource) ImportState(ctx context.Context, req resource.ImportSta
 }
 
 func sshKeyToModel(k *virtfoundry.SSHKey, cfg sshKeyModel, privateKey string) sshKeyModel {
+	// Prefer config/plan public_key when it equals the API value ignoring
+	// surrounding whitespace (tls_private_key often appends a trailing \n).
+	publicKey := strings.TrimSpace(k.PublicKey)
+	if !cfg.PublicKey.IsNull() && !cfg.PublicKey.IsUnknown() {
+		cfgKey := cfg.PublicKey.ValueString()
+		if strings.TrimSpace(cfgKey) == publicKey {
+			publicKey = cfgKey
+		}
+	}
 	out := sshKeyModel{
 		ID:          types.StringValue(k.ID),
 		Name:        types.StringValue(k.Name),
-		PublicKey:   types.StringValue(k.PublicKey),
+		PublicKey:   types.StringValue(publicKey),
 		Fingerprint: types.StringValue(k.Fingerprint),
 		Generate:    cfg.Generate,
 	}

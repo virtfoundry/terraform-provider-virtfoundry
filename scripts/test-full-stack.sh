@@ -15,9 +15,32 @@ SG_NAME="${SG_NAME:-tf-sg-${SUFFIX}}"
 SSH_NAME="${SSH_NAME:-tf-ssh-${SUFFIX}}"
 VM_NAME="${VM_NAME:-tf-vm-${SUFFIX}}"
 EXPOSE_SSH="${EXPOSE_SSH:-false}"
+# Homelab uses http://virtfoundry.homelab — provider 0.3+ requires insecure=true for HTTP.
+if [[ "${ENDPOINT}" == http://* ]]; then
+  INSECURE="${INSECURE:-true}"
+else
+  INSECURE="${INSECURE:-false}"
+fi
 # Spread tenants across 10.42–10.241 to reduce CIDR collisions between runs.
 VPC_OCTET=$((42 + SUFFIX % 200))
 VPC_CIDR="${VPC_CIDR:-10.${VPC_OCTET}.0.0/16}"
+
+tf_vars() {
+  # Shared -var flags for apply/refresh/plan/destroy
+  echo \
+    -var="endpoint=$ENDPOINT" \
+    -var="username=$USER" \
+    -var="password=$PASS" \
+    -var="tenant_id=$TENANT_ID" \
+    -var="insecure=$INSECURE" \
+    -var="vpc_name=$VPC_NAME" \
+    -var="vpc_cidr=$VPC_CIDR" \
+    -var="network_name=$NET_NAME" \
+    -var="security_group_name=$SG_NAME" \
+    -var="ssh_key_name=$SSH_NAME" \
+    -var="vm_name=$VM_NAME" \
+    -var="expose_ssh=$EXPOSE_SSH"
+}
 
 cleanup() {
   local code=$?
@@ -31,11 +54,8 @@ cleanup() {
   fi
   if [[ $code -ne 0 && -d "$EXAMPLE" && -f "$EXAMPLE/terraform.tfstate" ]]; then
     echo "==> terraform destroy (cleanup)"
-    (cd "$EXAMPLE" && terraform destroy -auto-approve -input=false \
-      -var="endpoint=$ENDPOINT" -var="username=$USER" -var="password=$PASS" \
-      -var="tenant_id=${TENANT_ID:-}" -var="vpc_name=$VPC_NAME" -var="vpc_cidr=$VPC_CIDR" \
-      -var="network_name=$NET_NAME" -var="security_group_name=$SG_NAME" \
-      -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" -var="expose_ssh=$EXPOSE_SSH") || true
+    # shellcheck disable=SC2046
+    (cd "$EXAMPLE" && terraform destroy -auto-approve -input=false $(tf_vars)) || true
   fi
 }
 trap cleanup EXIT
@@ -62,18 +82,8 @@ rm -f terraform.tfstate terraform.tfstate.backup
 terraform init -input=false
 
 echo "==> terraform apply (full stack)"
-terraform apply -auto-approve -input=false \
-  -var="endpoint=$ENDPOINT" \
-  -var="username=$USER" \
-  -var="password=$PASS" \
-  -var="tenant_id=$TENANT_ID" \
-  -var="vpc_name=$VPC_NAME" \
-  -var="vpc_cidr=$VPC_CIDR" \
-  -var="network_name=$NET_NAME" \
-  -var="security_group_name=$SG_NAME" \
-  -var="ssh_key_name=$SSH_NAME" \
-  -var="vm_name=$VM_NAME" \
-  -var="expose_ssh=$EXPOSE_SSH"
+# shellcheck disable=SC2046
+terraform apply -auto-approve -input=false $(tf_vars)
 
 assert_output() {
   local name=$1
@@ -100,11 +110,8 @@ if [[ -z "$VM_IP" || "$VM_IP" == "null" ]]; then
   echo "==> terraform refresh (wait for VM IP, up to 3m)"
   deadline=$((SECONDS + 180))
   while [[ $SECONDS -lt $deadline ]]; do
-    terraform refresh -input=false \
-      -var="endpoint=$ENDPOINT" -var="username=$USER" -var="password=$PASS" \
-      -var="tenant_id=$TENANT_ID" -var="vpc_name=$VPC_NAME" -var="vpc_cidr=$VPC_CIDR" \
-      -var="network_name=$NET_NAME" -var="security_group_name=$SG_NAME" \
-      -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" -var="expose_ssh=$EXPOSE_SSH" >/dev/null
+    # shellcheck disable=SC2046
+    terraform refresh -input=false $(tf_vars) >/dev/null
     VM_IP="$(terraform output -raw vm_ip 2>/dev/null || true)"
     if [[ -n "$VM_IP" && "$VM_IP" != "null" ]]; then
       echo "  ok vm_ip=$VM_IP"
@@ -141,11 +148,8 @@ for resource in \
 done
 
 echo "==> terraform plan (expect no changes)"
-if ! terraform plan -detailed-exitcode -input=false \
-  -var="endpoint=$ENDPOINT" -var="username=$USER" -var="password=$PASS" \
-  -var="tenant_id=$TENANT_ID" -var="vpc_name=$VPC_NAME" -var="vpc_cidr=$VPC_CIDR" \
-  -var="network_name=$NET_NAME" -var="security_group_name=$SG_NAME" \
-  -var="ssh_key_name=$SSH_NAME" -var="vm_name=$VM_NAME" >/tmp/tf-plan.txt; then
+# shellcheck disable=SC2046
+if ! terraform plan -detailed-exitcode -input=false $(tf_vars) >/tmp/tf-plan.txt; then
   echo "FAIL: plan wants changes after apply"
   cat /tmp/tf-plan.txt
   exit 1
@@ -155,18 +159,8 @@ echo "  ok plan is clean"
 terraform output
 
 echo "==> terraform destroy"
-terraform destroy -auto-approve -input=false \
-  -var="endpoint=$ENDPOINT" \
-  -var="username=$USER" \
-  -var="password=$PASS" \
-  -var="tenant_id=$TENANT_ID" \
-  -var="vpc_name=$VPC_NAME" \
-  -var="vpc_cidr=$VPC_CIDR" \
-  -var="network_name=$NET_NAME" \
-  -var="security_group_name=$SG_NAME" \
-  -var="ssh_key_name=$SSH_NAME" \
-  -var="vm_name=$VM_NAME" \
-  -var="expose_ssh=$EXPOSE_SSH"
+# shellcheck disable=SC2046
+terraform destroy -auto-approve -input=false $(tf_vars)
 
 trap - EXIT
 echo "==> OK — full stack apply/destroy passed"

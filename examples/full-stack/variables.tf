@@ -14,6 +14,12 @@ variable "password" {
   # No default — must be provided via TF_VAR_password or var file (see SECURITY.md)
 }
 
+variable "insecure" {
+  type        = bool
+  default     = false
+  description = "Allow HTTP endpoints (lab only). Required when endpoint is http://…"
+}
+
 variable "tenant_id" {
   type        = string
   description = "Target tenant UUID"
