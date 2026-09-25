@@ -50,7 +50,6 @@ func (r *sshKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Computed:            true,
 				MarkdownDescription: "OpenSSH authorized_keys line. Omit when `generate` is true.",
 				PlanModifiers: []planmodifier.String{
-					trimSpaceString{},
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -180,10 +179,19 @@ func (r *sshKeyResource) ImportState(ctx context.Context, req resource.ImportSta
 }
 
 func sshKeyToModel(k *virtfoundry.SSHKey, cfg sshKeyModel, privateKey string) sshKeyModel {
+	// Prefer config/plan public_key when it equals the API value ignoring
+	// surrounding whitespace (tls_private_key often appends a trailing \n).
+	publicKey := strings.TrimSpace(k.PublicKey)
+	if !cfg.PublicKey.IsNull() && !cfg.PublicKey.IsUnknown() {
+		cfgKey := cfg.PublicKey.ValueString()
+		if strings.TrimSpace(cfgKey) == publicKey {
+			publicKey = cfgKey
+		}
+	}
 	out := sshKeyModel{
 		ID:          types.StringValue(k.ID),
 		Name:        types.StringValue(k.Name),
-		PublicKey:   types.StringValue(strings.TrimSpace(k.PublicKey)),
+		PublicKey:   types.StringValue(publicKey),
 		Fingerprint: types.StringValue(k.Fingerprint),
 		Generate:    cfg.Generate,
 	}
@@ -197,25 +205,4 @@ func sshKeyToModel(k *virtfoundry.SSHKey, cfg sshKeyModel, privateKey string) ss
 		out.TenantID = cfg.TenantID
 	}
 	return out
-}
-
-// trimSpaceString makes planned public_key match API (no trailing newline).
-type trimSpaceString struct{}
-
-func (m trimSpaceString) Description(_ context.Context) string {
-	return "Trim leading and trailing whitespace"
-}
-
-func (m trimSpaceString) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m trimSpaceString) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	if req.PlanValue.IsNull() || req.PlanValue.IsUnknown() {
-		return
-	}
-	trimmed := strings.TrimSpace(req.PlanValue.ValueString())
-	if trimmed != req.PlanValue.ValueString() {
-		resp.PlanValue = types.StringValue(trimmed)
-	}
 }
