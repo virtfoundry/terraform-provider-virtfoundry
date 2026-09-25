@@ -41,13 +41,23 @@ func (r *apiKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a VirtFoundry API key. The secret is only available at creation time and not persisted on refresh. Store it securely; use write-only/ephemeral alternatives when available. See README Security section for state encryption guidance.",
 		Attributes: map[string]schema.Attribute{
-			"id":              schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
-			"tenant_id":       schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"name":            schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"user_id":         schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"id":        schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"tenant_id": schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"name":      schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			// Optional+Computed: API fills user_id (creator) and scopes (default ["*"]) when omitted.
+			"user_id": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			},
 			"expires_in_days": schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
-			"scopes":          schema.ListAttribute{ElementType: types.StringType, Optional: true, PlanModifiers: []planmodifier.List{listplanmodifier.RequiresReplace()}},
-			"prefix":          schema.StringAttribute{Computed: true},
+			"scopes": schema.ListAttribute{
+				ElementType:   types.StringType,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.List{listplanmodifier.RequiresReplace()},
+			},
+			"prefix": schema.StringAttribute{Computed: true},
 			"secret": schema.StringAttribute{
 				Computed:            true,
 				Sensitive:           true,

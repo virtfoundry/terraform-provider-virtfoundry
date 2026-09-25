@@ -310,3 +310,29 @@ func asJSON(v any) string {
 	}
 	return string(b)
 }
+
+func TestAPIKeyScopesUserIDComputed(t *testing.T) {
+	ctx := context.Background()
+	r := &apiKeyResource{}
+	var req resource.SchemaRequest
+	var resp resource.SchemaResponse
+	r.Schema(ctx, req, &resp)
+	for _, name := range []string{"scopes", "user_id"} {
+		attr, ok := resp.Schema.Attributes[name]
+		if !ok {
+			t.Fatalf("%s attribute missing", name)
+		}
+		switch a := attr.(type) {
+		case schema.StringAttribute:
+			if !a.Computed || !a.Optional {
+				t.Fatalf("%s should be Optional+Computed (got optional=%v computed=%v)", name, a.Optional, a.Computed)
+			}
+		case schema.ListAttribute:
+			if !a.Computed || !a.Optional {
+				t.Fatalf("%s should be Optional+Computed (got optional=%v computed=%v)", name, a.Optional, a.Computed)
+			}
+		default:
+			t.Fatalf("%s unexpected type %T", name, attr)
+		}
+	}
+}
