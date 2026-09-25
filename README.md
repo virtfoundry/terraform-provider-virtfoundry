@@ -13,12 +13,12 @@ Add the provider to your Terraform configuration:
 
 ```hcl
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.11" # >=1.10 for ephemeral, >=1.0 fallback with reduced protection (write-once only)
 
   required_providers {
     virtfoundry = {
       source  = "virtfoundry/virtfoundry"
-      version = "~> 0.2"
+      version = "~> 0.3"
     }
   }
 }
@@ -34,7 +34,7 @@ Run `terraform init` to download the provider from the [Terraform Registry](http
 
 ## Prerequisites
 
-- [Terraform](https://www.terraform.io/downloads) >= 1.0
+- [Terraform](https://www.terraform.io/downloads) >= 1.11 recommended (write-only attributes for secrets; `>= 1.0` minimum with reduced protection)
 - A running VirtFoundry control plane — install with the [Helm chart](https://github.com/virtfoundry/helm-charts)
 
 ## Quick example
@@ -100,6 +100,13 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [`virtfoundry_role`](docs/resources/role.md) | IAM role |
 | [`virtfoundry_api_key`](docs/resources/api_key.md) | API key (secret shown once) |
 
+## Ephemeral Resources (TF >=1.10)
+
+| Resource | Description |
+|----------|-------------|
+| [`ephemeral virtfoundry_api_key`](docs/ephemeral-resources/api_key.md) | Ephemeral API key — secret never in state |
+| [`ephemeral virtfoundry_ssh_key`](docs/ephemeral-resources/ssh_key.md) | Ephemeral SSH key — private key never in state |
+
 ## Data sources
 
 | Data source | Description |
@@ -132,6 +139,40 @@ Tenant-scoped resources import as `<tenant_id>/<id>` or `<id>` when the provider
 terraform import virtfoundry_vm.web <tenant_id>/web-01
 terraform import virtfoundry_vpc.main <vpc_id>
 ```
+
+## Security — State Encryption
+
+> **Warning:** Terraform state (`*.tfstate`, remote backends, `terraform show -json`) is **plaintext JSON**. `Sensitive: true` only redacts CLI output — it does **not** encrypt state. API secrets (`virtfoundry_api_key.secret`), passwords (`virtfoundry_user.password`, `virtfoundry_tenant.admin_password`) and generated `virtfoundry_ssh_key.private_key_pem` were historically persisted in state and leaked via backups/CI artifacts.
+
+**Mitigations in this provider (since v0.3):**
+
+- `user.password` and `tenant.admin_password` are **write-only** (TF >=1.11, `framework v1.16+`) — never written to state/plan.
+- `api_key.secret` and `ssh_key.private_key_pem` are **write-once** (managed) — set only at `Create`, **briefly in state until first `terraform refresh`/`apply -refresh-only`**, then nulled — `terraform show -json` after refresh will not contain them. Use `ephemeral` for zero-state. Prefer bringing your own public key (`public_key = file(...)` or `tls_private_key`) over `generate = true`.
+- **Ephemeral alternatives (TF >=1.10):** `ephemeral "virtfoundry_api_key"` and `ephemeral "virtfoundry_ssh_key"` — secrets are only in-memory and the resource is deleted on `Close` (never persisted). Use for CI, provisioners, or short-lived keys.
+- For full protection enable [Terraform state encryption](https://developer.hashicorp.com/terraform/language/state/encryption) (TF >=1.11) and encrypted backends (S3 SSE-KMS, Terraform Cloud encryption, etc.).
+
+Example (TF >=1.11):
+
+```hcl
+terraform {
+  required_version = ">= 1.11"
+  encryption {
+    key_provider "pbkdf2" "state_key" {
+      passphrase = var.state_passphrase # from env/vault, not checked in
+    }
+    method "aes_gcm" "state_method" {
+      keys = key_provider.pbkdf2.state_key
+    }
+    state {
+      method = method.aes_gcm.state_method
+      # optional: also encrypt plan
+      # plan { method = method.aes_gcm.state_method }
+    }
+  }
+}
+```
+
+Operational guidance: generate SSH keys outside Terraform (`tls_private_key` + `public_key`), store API secrets in Vault/Secrets Manager, and treat state as sensitive data (restrict backend IAM, enable versioning + encryption, scrub old states).
 
 ## Development
 

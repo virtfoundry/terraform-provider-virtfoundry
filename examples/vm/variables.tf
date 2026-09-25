@@ -11,6 +11,7 @@ variable "username" {
 variable "password" {
   type      = string
   sensitive = true
+  # No default — must be provided via TF_VAR_password or var file
 }
 
 variable "tenant_id" {

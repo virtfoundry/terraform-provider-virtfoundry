@@ -38,12 +38,18 @@ func (r *userResource) Metadata(_ context.Context, _ resource.MetadataRequest, r
 
 func (r *userResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a VirtFoundry tenant IAM user. Use modules/tenant-iam or a tenant-scoped provider.",
+		MarkdownDescription: "Manages a VirtFoundry tenant IAM user. Use modules/tenant-iam or a tenant-scoped provider. Password is write-only (TF >=1.11) and never persisted in state.",
 		Attributes: map[string]schema.Attribute{
 			"id":        schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"tenant_id": schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"username":  schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			"password":  schema.StringAttribute{Required: true, Sensitive: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
+			"password": schema.StringAttribute{
+				Required:            true,
+				Sensitive:           true,
+				WriteOnly:           true,
+				MarkdownDescription: "Initial password (write-only, TF >=1.11). Not persisted in state after apply. Changing forces replacement.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			},
 			"email":     schema.StringAttribute{Optional: true},
 			"role_id":   schema.StringAttribute{Optional: true},
 			"role_name": schema.StringAttribute{Optional: true, MarkdownDescription: "Role name when `role_id` is omitted."},
@@ -67,12 +73,17 @@ func (r *userResource) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var cfg userModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(r.client, plan.TenantID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	in := virtfoundry.CreateUserInput{Username: plan.Username.ValueString(), Password: plan.Password.ValueString()}
+	in := virtfoundry.CreateUserInput{Username: plan.Username.ValueString(), Password: cfg.Password.ValueString()}
 	if !plan.Email.IsNull() {
 		in.Email = plan.Email.ValueString()
 	}
@@ -179,6 +190,9 @@ func userToModel(u *virtfoundry.User, cfg userModel) userModel {
 		ID:       types.StringValue(u.ID),
 		Username: types.StringValue(u.Username),
 		Role:     types.StringValue(u.Role),
+		// Password is WriteOnly: never persisted in state. TF >=1.11 drops it automatically.
+		// Keep null so `terraform show -json` never contains it, even on TF <1.11.
+		Password: types.StringNull(),
 	}
 	if u.Email != "" {
 		out.Email = types.StringValue(u.Email)
@@ -197,9 +211,6 @@ func userToModel(u *virtfoundry.User, cfg userModel) userModel {
 	}
 	if !cfg.TenantID.IsNull() && cfg.TenantID.ValueString() != "" {
 		out.TenantID = cfg.TenantID
-	}
-	if !cfg.Password.IsNull() {
-		out.Password = cfg.Password
 	}
 	if !cfg.RoleName.IsNull() {
 		out.RoleName = cfg.RoleName

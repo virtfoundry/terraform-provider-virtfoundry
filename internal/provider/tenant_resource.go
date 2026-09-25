@@ -57,7 +57,8 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"admin_password": schema.StringAttribute{
 				Optional:            true,
 				Sensitive:           true,
-				MarkdownDescription: "Initial tenant admin password.",
+				WriteOnly:           true,
+				MarkdownDescription: "Initial tenant admin password (write-only, TF >=1.11). Not persisted in state after apply.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"namespace": schema.StringAttribute{
@@ -86,12 +87,17 @@ func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var cfg tenantModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	in := virtfoundry.CreateTenantInput{Name: plan.Name.ValueString()}
 	if !plan.Slug.IsNull() {
 		in.Slug = plan.Slug.ValueString()
 	}
-	if !plan.AdminPassword.IsNull() {
-		in.AdminPassword = plan.AdminPassword.ValueString()
+	if !cfg.AdminPassword.IsNull() {
+		in.AdminPassword = cfg.AdminPassword.ValueString()
 	}
 	t, err := r.client.CreateTenant(ctx, in)
 	if err != nil {
@@ -143,18 +149,17 @@ func (r *tenantResource) ImportState(ctx context.Context, req resource.ImportSta
 
 func tenantToModel(t *virtfoundry.Tenant, cfg tenantModel) tenantModel {
 	out := tenantModel{
-		ID:        types.StringValue(t.ID),
-		Name:      types.StringValue(t.Name),
-		Namespace: types.StringValue(t.Namespace),
-		State:     types.StringValue(t.State),
+		ID:            types.StringValue(t.ID),
+		Name:          types.StringValue(t.Name),
+		Namespace:     types.StringValue(t.Namespace),
+		State:         types.StringValue(t.State),
+		AdminPassword: types.StringNull(),
 	}
 	if !cfg.Slug.IsNull() && cfg.Slug.ValueString() != "" {
 		out.Slug = cfg.Slug
 	} else if t.Slug != "" {
 		out.Slug = types.StringValue(t.Slug)
 	}
-	if !cfg.AdminPassword.IsNull() {
-		out.AdminPassword = cfg.AdminPassword
-	}
+	// AdminPassword is WriteOnly: never persisted in state.
 	return out
 }

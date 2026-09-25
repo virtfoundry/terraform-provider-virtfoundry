@@ -9,6 +9,8 @@ description: |-
 
 Creates a new tenant on the VirtFoundry platform. Requires **root** API credentials (no `tenant_id` on the provider). Tenants cannot be updated or deleted via the API — destroy removes Terraform state only.
 
+> **Security:** `admin_password` is **write-only** (TF >=1.11) and never stored in state. Enable state encryption and treat state as sensitive. See provider README Security.
+
 ## Example Usage
 
 ```hcl
@@ -31,7 +33,7 @@ resource "virtfoundry_tenant" "acme" {
 |------|------|----------|-------------|
 | `name` | String | yes | Display name for the tenant. |
 | `slug` | String | no | URL-safe slug; derived from `name` when omitted. |
-| `admin_password` | String | no | Initial tenant admin password (sensitive). |
+| `admin_password` | String | no | Initial tenant admin password (sensitive, **write-only** TF >=1.11, not persisted in state). |
 
 ## Attribute Reference
 
@@ -46,3 +48,5 @@ resource "virtfoundry_tenant" "acme" {
 ```shell
 terraform import virtfoundry_tenant.acme <tenant_id>
 ```
+
+> **Note:** `admin_password` is write-only — imported tenants have `null` in state. Provide the password in config if you need to force replacement; otherwise leave unset.

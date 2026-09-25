@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -13,6 +14,21 @@ import (
 )
 
 func configureClient(req resource.ConfigureRequest, resp *resource.ConfigureResponse) *virtfoundry.Client {
+	if req.ProviderData == nil {
+		return nil
+	}
+	client, ok := req.ProviderData.(*virtfoundry.Client)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected provider data",
+			fmt.Sprintf("Expected *virtfoundry.Client, got %T", req.ProviderData),
+		)
+		return nil
+	}
+	return client
+}
+
+func configureClientEphemeral(req ephemeral.ConfigureRequest, resp *ephemeral.ConfigureResponse) *virtfoundry.Client {
 	if req.ProviderData == nil {
 		return nil
 	}

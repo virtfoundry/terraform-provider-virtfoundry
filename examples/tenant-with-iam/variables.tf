@@ -11,6 +11,7 @@ variable "root_username" {
 variable "root_password" {
   type      = string
   sensitive = true
+  # No default — must be provided via TF_VAR_root_password or var file
 }
 
 variable "create_tenant" {

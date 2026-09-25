@@ -9,6 +9,8 @@ description: |-
 
 Creates an API key for programmatic access. The full secret (`vfd_live_...`) is returned **once** at creation — store it securely.
 
+> **Security:** `secret` is sensitive and only set at `Create`. It **briefly lives in state until the first `terraform refresh`/`apply -refresh-only`**, then is nulled (`terraform show -json` → `null`). For zero-state use `ephemeral "virtfoundry_api_key"` (TF >=1.10). Treat state as sensitive and enable [state encryption](https://developer.hashicorp.com/terraform/language/state/encryption) (TF >=1.11). See provider README Security section.
+
 ## Example Usage
 
 ```hcl
@@ -40,7 +42,7 @@ output "api_key_secret" {
 |------|-------------|
 | `id` | API key UUID. |
 | `prefix` | Key prefix for identification. |
-| `secret` | Full API key secret (sensitive; only at create). |
+| `secret` | Full API key secret (sensitive; only at create, not persisted after refresh). |
 
 ## Import
 
