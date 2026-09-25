@@ -18,6 +18,7 @@ provider "virtfoundry" {
   username  = var.username
   password  = var.password
   tenant_id = var.tenant_id
+  insecure  = var.insecure
 }
 
 data "virtfoundry_service_offerings" "catalog" {}
