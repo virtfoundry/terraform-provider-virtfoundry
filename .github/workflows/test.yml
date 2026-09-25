@@ -33,5 +33,8 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Race detector
+        run: go test -race ./...
+
       - name: Build
         run: go build -o /dev/null .
