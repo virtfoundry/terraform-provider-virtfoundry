@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -19,11 +20,19 @@ import (
 const defaultTimeout = 30 * time.Second
 
 // Client is a thin HTTP client for the VirtFoundry REST API.
+//
+// A single Client is shared by every resource in a provider run, and Terraform
+// walks the graph in parallel. Per-request state (such as the tenant scope) is
+// therefore passed as an argument and never stored on the Client.
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
-	token      string
-	tenantID   string
+
+	// mu guards the credentials below, which are written at provider configure
+	// time and read by concurrent requests.
+	mu              sync.RWMutex
+	token           string
+	defaultTenantID string
 }
 
 // NewClient builds a client for the given API endpoint.
@@ -74,17 +83,37 @@ func isLoopbackHost(host string) bool {
 
 // SetAPIKey configures Bearer auth with a VirtFoundry API key (vfd_live_...).
 func (c *Client) SetAPIKey(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.token = strings.TrimSpace(key)
 }
 
-// SetTenantID sets the default X-Tenant-ID header for root-scoped calls.
+// SetTenantID sets the default X-Tenant-ID header used by requests that do not
+// carry their own tenant scope.
 func (c *Client) SetTenantID(tenantID string) {
-	c.tenantID = strings.TrimSpace(tenantID)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.defaultTenantID = strings.TrimSpace(tenantID)
 }
 
 // TenantID returns the configured default tenant ID.
 func (c *Client) TenantID() string {
-	return c.tenantID
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.defaultTenantID
+}
+
+// credentials snapshots the shared auth state for a single request.
+func (c *Client) credentials() (token, defaultTenantID string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.token, c.defaultTenantID
+}
+
+func (c *Client) setToken(token string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.token = token
 }
 
 type loginRequest struct {
@@ -130,7 +159,7 @@ func (c *Client) Login(ctx context.Context, username, password string) error {
 	if out.Token == "" {
 		return fmt.Errorf("login response missing token")
 	}
-	c.token = out.Token
+	c.setToken(out.Token)
 	return nil
 }
 
@@ -153,7 +182,7 @@ func (c *Client) Health(ctx context.Context) error {
 
 // PingAuth verifies credentials against GET /api/v1/auth/me.
 func (c *Client) PingAuth(ctx context.Context) error {
-	resp, err := c.do(ctx, http.MethodGet, "/api/v1/auth/me", nil)
+	resp, err := c.do(ctx, "", http.MethodGet, "/api/v1/auth/me", nil)
 	if err != nil {
 		return err
 	}
@@ -164,23 +193,32 @@ func (c *Client) PingAuth(ctx context.Context) error {
 	return nil
 }
 
-// Do sends an authenticated API request.
-func (c *Client) Do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
-	return c.do(ctx, method, path, body)
+// Do sends an authenticated API request scoped to the given tenant. An empty
+// tenantID falls back to the provider-level default tenant.
+func (c *Client) Do(ctx context.Context, tenantID, method, path string, body io.Reader) (*http.Response, error) {
+	return c.do(ctx, tenantID, method, path, body)
 }
 
-func (c *Client) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
-	if c.token == "" {
+// do sends an authenticated API request. tenantID scopes this request only and
+// is never written back to the Client, so parallel requests cannot observe each
+// other's tenant scope.
+func (c *Client) do(ctx context.Context, tenantID, method, path string, body io.Reader) (*http.Response, error) {
+	token, defaultTenantID := c.credentials()
+	if token == "" {
 		return nil, fmt.Errorf("not authenticated")
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		tenantID = defaultTenantID
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	if c.tenantID != "" {
-		req.Header.Set("X-Tenant-ID", c.tenantID)
+	req.Header.Set("Authorization", "Bearer "+token)
+	if tenantID != "" {
+		req.Header.Set("X-Tenant-ID", tenantID)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
