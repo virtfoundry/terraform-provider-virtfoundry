@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -49,6 +50,7 @@ func (r *sshKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Computed:            true,
 				MarkdownDescription: "OpenSSH authorized_keys line. Omit when `generate` is true.",
 				PlanModifiers: []planmodifier.String{
+					trimSpaceString{},
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -84,7 +86,11 @@ func (r *sshKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 	generate := !plan.Generate.IsNull() && plan.Generate.ValueBool()
-	hasPublic := !plan.PublicKey.IsNull() && plan.PublicKey.ValueString() != ""
+	publicKey := ""
+	if !plan.PublicKey.IsNull() {
+		publicKey = strings.TrimSpace(plan.PublicKey.ValueString())
+	}
+	hasPublic := publicKey != ""
 	if generate && hasPublic {
 		resp.Diagnostics.AddError("Conflicting SSH key input", "Set either `generate = true` or `public_key`, not both.")
 		return
@@ -108,7 +114,7 @@ func (r *sshKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 	} else {
 		key, err = r.client.RegisterSSHKey(ctx, tenantID, virtfoundry.RegisterSSHKeyInput{
 			Name:      plan.Name.ValueString(),
-			PublicKey: plan.PublicKey.ValueString(),
+			PublicKey: publicKey,
 		})
 	}
 	if err != nil {
@@ -177,7 +183,7 @@ func sshKeyToModel(k *virtfoundry.SSHKey, cfg sshKeyModel, privateKey string) ss
 	out := sshKeyModel{
 		ID:          types.StringValue(k.ID),
 		Name:        types.StringValue(k.Name),
-		PublicKey:   types.StringValue(k.PublicKey),
+		PublicKey:   types.StringValue(strings.TrimSpace(k.PublicKey)),
 		Fingerprint: types.StringValue(k.Fingerprint),
 		Generate:    cfg.Generate,
 	}
@@ -191,4 +197,25 @@ func sshKeyToModel(k *virtfoundry.SSHKey, cfg sshKeyModel, privateKey string) ss
 		out.TenantID = cfg.TenantID
 	}
 	return out
+}
+
+// trimSpaceString makes planned public_key match API (no trailing newline).
+type trimSpaceString struct{}
+
+func (m trimSpaceString) Description(_ context.Context) string {
+	return "Trim leading and trailing whitespace"
+}
+
+func (m trimSpaceString) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m trimSpaceString) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.PlanValue.IsNull() || req.PlanValue.IsUnknown() {
+		return
+	}
+	trimmed := strings.TrimSpace(req.PlanValue.ValueString())
+	if trimmed != req.PlanValue.ValueString() {
+		resp.PlanValue = types.StringValue(trimmed)
+	}
 }

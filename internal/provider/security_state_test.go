@@ -43,6 +43,20 @@ func TestSSHPrivateKeyNotPersistedOnRead(t *testing.T) {
 	}
 }
 
+func TestSSHPublicKeyTrimSpace(t *testing.T) {
+	k := &virtfoundry.SSHKey{
+		ID:          "s1",
+		Name:        "test",
+		PublicKey:   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyMaterialHere\n",
+		Fingerprint: "fp",
+	}
+	out := sshKeyToModel(k, sshKeyModel{}, "")
+	want := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyMaterialHere"
+	if out.PublicKey.ValueString() != want {
+		t.Fatalf("expected trimmed public_key %q, got %q", want, out.PublicKey.ValueString())
+	}
+}
+
 func TestUserPasswordWriteOnlyNotPersisted(t *testing.T) {
 	u := &virtfoundry.User{ID: "u1", Username: "alice", Role: "admin"}
 	cfg := userModel{Password: types.StringValue("secret"), TenantID: types.StringValue("t1")}
