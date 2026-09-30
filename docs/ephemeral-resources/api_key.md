@@ -11,6 +11,8 @@ Ephemeral API key for short-lived automation. The secret is **never written to s
 
 Requires Terraform >= 1.10 and provider `>= 0.3`.
 
+> Prefer an explicit `expires_in_days` (short TTL) and non-empty `scopes`. Omitting scopes on the API historically meant all caller permissions (`["*"]`).
+
 ## Example Usage
 
 ```hcl
@@ -30,8 +32,8 @@ ephemeral "virtfoundry_api_key" "ci" {
 |------|------|----------|-------------|
 | `name` | String | yes | Key name. |
 | `user_id` | String | no | Owner user UUID. Defaults to the authenticated user. |
-| `expires_in_days` | Number | no | Expiration in days. Short-lived recommended. |
-| `scopes` | List(String) | no | Permission scopes. |
+| `expires_in_days` | Number | no | Expiration in days. Short-lived recommended; API never-expires if unset. |
+| `scopes` | List(String) | no | Permission scopes. Prefer explicit list; empty/omitted on API = all caller perms. |
 | `tenant_id` | String | no | Tenant UUID. Defaults to provider `tenant_id`. |
 
 ## Attribute Reference

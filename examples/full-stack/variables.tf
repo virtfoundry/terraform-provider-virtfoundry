@@ -50,6 +50,12 @@ variable "security_group_name" {
   default = "tf-demo-ssh"
 }
 
+variable "ssh_ingress_cidr" {
+  type        = string
+  default     = "10.0.0.0/8"
+  description = "Source CIDR for demo SSH ingress. Override with your admin network; do not use 0.0.0.0/0 in shared environments."
+}
+
 variable "ssh_key_name" {
   type    = string
   default = "tf-demo-key"

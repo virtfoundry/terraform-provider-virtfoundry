@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -44,18 +45,24 @@ func (r *apiKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"id":        schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"tenant_id": schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
 			"name":      schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
-			// Optional+Computed: API fills user_id (creator) and scopes (default ["*"]) when omitted.
+			// Optional+Computed: API fills user_id (creator) when omitted.
 			"user_id": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
-			"expires_in_days": schema.Int64Attribute{Optional: true, PlanModifiers: []planmodifier.Int64{int64planmodifier.RequiresReplace()}},
+			"expires_in_days": schema.Int64Attribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(90),
+				MarkdownDescription: "Expiration in days. Defaults to **90**. The VirtFoundry API treats a missing TTL as never-expire; this provider always sends a TTL.",
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.RequiresReplace()},
+			},
 			"scopes": schema.ListAttribute{
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				PlanModifiers: []planmodifier.List{listplanmodifier.RequiresReplace()},
+				ElementType:         types.StringType,
+				Required:            true,
+				MarkdownDescription: "Permission scopes (required, non-empty). Omitting scopes on the API historically meant all caller permissions (`[\"*\"]`); the provider requires an explicit list.",
+				PlanModifiers:       []planmodifier.List{listplanmodifier.RequiresReplace()},
 			},
 			"prefix": schema.StringAttribute{Computed: true},
 			"secret": schema.StringAttribute{
@@ -89,12 +96,24 @@ func (r *apiKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 	scopes, diags := stringListFromModel(ctx, plan.Scopes)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if len(scopes) == 0 {
+		resp.Diagnostics.AddError(
+			"scopes required",
+			"Set an explicit non-empty scopes list. Empty scopes historically granted all caller permissions on the API.",
+		)
+		return
+	}
 	in := virtfoundry.CreateAPIKeyInput{Name: plan.Name.ValueString(), Scopes: scopes}
 	if !plan.UserID.IsNull() {
 		in.UserID = plan.UserID.ValueString()
 	}
-	if !plan.ExpiresInDays.IsNull() {
+	if !plan.ExpiresInDays.IsNull() && !plan.ExpiresInDays.IsUnknown() {
 		in.ExpiresInDays = int(plan.ExpiresInDays.ValueInt64())
+	} else {
+		in.ExpiresInDays = 90
 	}
 	res, err := r.client.CreateAPIKey(ctx, tenantID, in)
 	if err != nil {
