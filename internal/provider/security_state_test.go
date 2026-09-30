@@ -325,28 +325,46 @@ func asJSON(v any) string {
 	return string(b)
 }
 
-func TestAPIKeyScopesUserIDComputed(t *testing.T) {
+func TestAPIKeyScopesRequiredAndUserIDComputed(t *testing.T) {
 	ctx := context.Background()
 	r := &apiKeyResource{}
 	var req resource.SchemaRequest
 	var resp resource.SchemaResponse
 	r.Schema(ctx, req, &resp)
-	for _, name := range []string{"scopes", "user_id"} {
-		attr, ok := resp.Schema.Attributes[name]
-		if !ok {
-			t.Fatalf("%s attribute missing", name)
-		}
-		switch a := attr.(type) {
-		case schema.StringAttribute:
-			if !a.Computed || !a.Optional {
-				t.Fatalf("%s should be Optional+Computed (got optional=%v computed=%v)", name, a.Optional, a.Computed)
-			}
-		case schema.ListAttribute:
-			if !a.Computed || !a.Optional {
-				t.Fatalf("%s should be Optional+Computed (got optional=%v computed=%v)", name, a.Optional, a.Computed)
-			}
-		default:
-			t.Fatalf("%s unexpected type %T", name, attr)
-		}
+
+	scopesAttr, ok := resp.Schema.Attributes["scopes"]
+	if !ok {
+		t.Fatal("scopes attribute missing")
+	}
+	scopes, ok := scopesAttr.(schema.ListAttribute)
+	if !ok {
+		t.Fatalf("scopes unexpected type %T", scopesAttr)
+	}
+	if !scopes.Required || scopes.Optional || scopes.Computed {
+		t.Fatalf("scopes should be Required (got required=%v optional=%v computed=%v)", scopes.Required, scopes.Optional, scopes.Computed)
+	}
+
+	userAttr, ok := resp.Schema.Attributes["user_id"]
+	if !ok {
+		t.Fatal("user_id attribute missing")
+	}
+	userID, ok := userAttr.(schema.StringAttribute)
+	if !ok {
+		t.Fatalf("user_id unexpected type %T", userAttr)
+	}
+	if !userID.Computed || !userID.Optional {
+		t.Fatalf("user_id should be Optional+Computed (got optional=%v computed=%v)", userID.Optional, userID.Computed)
+	}
+
+	expAttr, ok := resp.Schema.Attributes["expires_in_days"]
+	if !ok {
+		t.Fatal("expires_in_days attribute missing")
+	}
+	exp, ok := expAttr.(schema.Int64Attribute)
+	if !ok {
+		t.Fatalf("expires_in_days unexpected type %T", expAttr)
+	}
+	if exp.Default == nil {
+		t.Fatal("expires_in_days should have a Default (90 days)")
 	}
 }
