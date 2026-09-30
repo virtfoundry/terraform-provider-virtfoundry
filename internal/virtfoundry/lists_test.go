@@ -13,12 +13,12 @@ func TestListEndpointsDecodeAPIKeys(t *testing.T) {
 	t.Parallel()
 
 	fixtures := map[string]string{
-		"/api/v1/vpcs":             `{"vpcs":[{"id":"v1","name":"main","cidr":"10.0.0.0/16","state":"ready"}]}`,
-		"/api/v1/networks":         `{"networks":[{"id":"n1","name":"default","vpc_id":"v1","cidr":"10.0.1.0/24","state":"ready"}]}`,
-		"/api/v1/security-groups":  `{"security_groups":[{"id":"sg1","name":"web","vpc_id":"v1","description":"http"}]}`,
-		"/api/v1/ssh-keys":         `{"ssh_keys":[{"id":"k1","name":"laptop","public_key":"ssh-ed25519 AAA","fingerprint":"SHA256:abc"}]}`,
-		"/api/v1/roles":            `{"roles":[{"id":"r1","name":"admin","description":"full","is_system":true,"permissions":["*"]}]}`,
-		"/api/v1/users":            `{"users":[{"id":"u1","username":"alice","email":"a@ex.com","role":"admin","role_id":"r1","state":"active"}]}`,
+		"/api/v1/vpcs":            `{"vpcs":[{"id":"v1","name":"main","cidr":"10.0.0.0/16","state":"ready"}]}`,
+		"/api/v1/networks":        `{"networks":[{"id":"n1","name":"default","vpc_id":"v1","cidr":"10.0.1.0/24","state":"ready"}]}`,
+		"/api/v1/security-groups": `{"security_groups":[{"id":"sg1","name":"web","vpc_id":"v1","description":"http"}]}`,
+		"/api/v1/ssh-keys":        `{"ssh_keys":[{"id":"k1","name":"laptop","public_key":"ssh-ed25519 AAA","fingerprint":"SHA256:abc"}]}`,
+		"/api/v1/roles":           `{"roles":[{"id":"r1","name":"admin","description":"full","is_system":true,"permissions":["*"]}]}`,
+		"/api/v1/users":           `{"users":[{"id":"u1","username":"alice","email":"a@ex.com","role":"admin","role_id":"r1","state":"active"}]}`,
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
