@@ -11,15 +11,6 @@ import (
 	"github.com/virtfoundry/terraform-provider-virtfoundry/internal/virtfoundry"
 )
 
-type tenantListDataSource struct {
-	client *virtfoundry.Client
-}
-
-type tenantListModel struct {
-	TenantID types.String `tfsdk:"tenant_id"`
-	Items    types.List   `tfsdk:"items"`
-}
-
 func configureDataSource(client **virtfoundry.Client, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -30,6 +21,13 @@ func configureDataSource(client **virtfoundry.Client, req datasource.ConfigureRe
 		return
 	}
 	*client = c
+}
+
+// --- VPCs ---
+
+type vpcsModel struct {
+	TenantID types.String `tfsdk:"tenant_id"`
+	VPCs     types.List   `tfsdk:"vpcs"`
 }
 
 func NewVPCsDataSource() datasource.DataSource { return &vpcsDataSource{} }
@@ -65,10 +63,16 @@ func (d *vpcsDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg vpcsModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	items, err := d.client.ListVPCs(ctx, tenantID)
 	if err != nil {
 		resp.Diagnostics.AddError("List VPCs failed", err.Error())
@@ -86,14 +90,14 @@ func (d *vpcsDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	}
 	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: attrTypes}, elems)
 	resp.Diagnostics.Append(listDiags...)
-	out := tenantListModel{Items: list}
-	if !cfg.TenantID.IsNull() {
-		out.TenantID = cfg.TenantID
-	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &struct {
-		TenantID types.String `tfsdk:"tenant_id"`
-		VPCs     types.List   `tfsdk:"vpcs"`
-	}{TenantID: out.TenantID, VPCs: list})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &vpcsModel{TenantID: cfg.TenantID, VPCs: list})...)
+}
+
+// --- Networks ---
+
+type networksModel struct {
+	TenantID types.String `tfsdk:"tenant_id"`
+	Networks types.List   `tfsdk:"networks"`
 }
 
 func NewNetworksDataSource() datasource.DataSource { return &networksDataSource{} }
@@ -127,12 +131,19 @@ func (d *networksDataSource) Configure(_ context.Context, req datasource.Configu
 
 func (d *networksDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	if d.client == nil {
+		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg networksModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	items, err := d.client.ListNetworks(ctx, tenantID)
 	if err != nil {
 		resp.Diagnostics.AddError("List networks failed", err.Error())
@@ -150,10 +161,14 @@ func (d *networksDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: attrTypes}, elems)
 	resp.Diagnostics.Append(listDiags...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &struct {
-		TenantID types.String `tfsdk:"tenant_id"`
-		Networks types.List   `tfsdk:"networks"`
-	}{TenantID: cfg.TenantID, Networks: list})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &networksModel{TenantID: cfg.TenantID, Networks: list})...)
+}
+
+// --- Security groups ---
+
+type securityGroupsModel struct {
+	TenantID       types.String `tfsdk:"tenant_id"`
+	SecurityGroups types.List   `tfsdk:"security_groups"`
 }
 
 func NewSecurityGroupsDataSource() datasource.DataSource { return &securityGroupsDataSource{} }
@@ -186,12 +201,19 @@ func (d *securityGroupsDataSource) Configure(_ context.Context, req datasource.C
 
 func (d *securityGroupsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	if d.client == nil {
+		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg securityGroupsModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	items, err := d.client.ListSecurityGroups(ctx, tenantID)
 	if err != nil {
 		resp.Diagnostics.AddError("List security groups failed", err.Error())
@@ -209,10 +231,14 @@ func (d *securityGroupsDataSource) Read(ctx context.Context, req datasource.Read
 	}
 	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: attrTypes}, elems)
 	resp.Diagnostics.Append(listDiags...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &struct {
-		TenantID       types.String `tfsdk:"tenant_id"`
-		SecurityGroups types.List   `tfsdk:"security_groups"`
-	}{TenantID: cfg.TenantID, SecurityGroups: list})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &securityGroupsModel{TenantID: cfg.TenantID, SecurityGroups: list})...)
+}
+
+// --- SSH keys ---
+
+type sshKeysModel struct {
+	TenantID types.String `tfsdk:"tenant_id"`
+	SSHKeys  types.List   `tfsdk:"ssh_keys"`
 }
 
 func NewSSHKeysDataSource() datasource.DataSource { return &sshKeysDataSource{} }
@@ -245,12 +271,19 @@ func (d *sshKeysDataSource) Configure(_ context.Context, req datasource.Configur
 
 func (d *sshKeysDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	if d.client == nil {
+		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg sshKeysModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	items, err := d.client.ListSSHKeys(ctx, tenantID)
 	if err != nil {
 		resp.Diagnostics.AddError("List SSH keys failed", err.Error())
@@ -268,10 +301,14 @@ func (d *sshKeysDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	}
 	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: attrTypes}, elems)
 	resp.Diagnostics.Append(listDiags...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &struct {
-		TenantID types.String `tfsdk:"tenant_id"`
-		SSHKeys  types.List   `tfsdk:"ssh_keys"`
-	}{TenantID: cfg.TenantID, SSHKeys: list})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &sshKeysModel{TenantID: cfg.TenantID, SSHKeys: list})...)
+}
+
+// --- Roles ---
+
+type rolesModel struct {
+	TenantID types.String `tfsdk:"tenant_id"`
+	Roles    types.List   `tfsdk:"roles"`
 }
 
 func NewRolesDataSource() datasource.DataSource { return &rolesDataSource{} }
@@ -308,10 +345,16 @@ func (d *rolesDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg rolesModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	items, err := d.client.ListRoles(ctx, tenantID)
 	if err != nil {
 		resp.Diagnostics.AddError("List roles failed", err.Error())
@@ -339,10 +382,14 @@ func (d *rolesDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: attrTypes}, elems)
 	resp.Diagnostics.Append(listDiags...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &struct {
-		TenantID types.String `tfsdk:"tenant_id"`
-		Roles    types.List   `tfsdk:"roles"`
-	}{TenantID: cfg.TenantID, Roles: list})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &rolesModel{TenantID: cfg.TenantID, Roles: list})...)
+}
+
+// --- Users ---
+
+type usersModel struct {
+	TenantID types.String `tfsdk:"tenant_id"`
+	Users    types.List   `tfsdk:"users"`
 }
 
 func NewUsersDataSource() datasource.DataSource { return &usersDataSource{} }
@@ -379,10 +426,16 @@ func (d *usersDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		resp.Diagnostics.AddError("Provider not configured", "client nil")
 		return
 	}
-	var cfg tenantListModel
+	var cfg usersModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	tenantID, diags := resolveTenantID(d.client, cfg.TenantID)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	items, err := d.client.ListUsers(ctx, tenantID)
 	if err != nil {
 		resp.Diagnostics.AddError("List users failed", err.Error())
@@ -404,8 +457,5 @@ func (d *usersDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: attrTypes}, elems)
 	resp.Diagnostics.Append(listDiags...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &struct {
-		TenantID types.String `tfsdk:"tenant_id"`
-		Users    types.List   `tfsdk:"users"`
-	}{TenantID: cfg.TenantID, Users: list})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &usersModel{TenantID: cfg.TenantID, Users: list})...)
 }
