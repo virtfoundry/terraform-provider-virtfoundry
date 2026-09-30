@@ -17,7 +17,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-const defaultTimeout = 30 * time.Second
+// defaultTimeout covers slow creates and WaitForVMState poll loops. Dial/TLS
+// still fail fast via the transport; this is the per-request ceiling.
+const defaultTimeout = 5 * time.Minute
 
 // Client is a thin HTTP client for the VirtFoundry REST API.
 //

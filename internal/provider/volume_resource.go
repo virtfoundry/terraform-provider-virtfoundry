@@ -40,7 +40,7 @@ func (r *volumeResource) Metadata(_ context.Context, _ resource.MetadataRequest,
 
 func (r *volumeResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a VirtFoundry block storage volume. Destroy removes Terraform state only; the API has no delete endpoint yet.",
+		MarkdownDescription: "Manages a VirtFoundry block storage volume.",
 		Attributes: map[string]schema.Attribute{
 			"id":        schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
 			"tenant_id": schema.StringAttribute{Optional: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}},
@@ -115,11 +115,24 @@ func (r *volumeResource) Update(_ context.Context, _ resource.UpdateRequest, res
 	resp.Diagnostics.AddError("Update not supported", "Volume size cannot be changed after creation.")
 }
 
-func (r *volumeResource) Delete(_ context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
-	resp.Diagnostics.AddWarning(
-		"Volume not deleted in VirtFoundry",
-		"The API has no volume delete endpoint. The volume remains in the cluster; only Terraform state is cleared.",
-	)
+func (r *volumeResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.Diagnostics.Append(requireClient(r.client)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state volumeModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	tenantID, diags := resolveTenantID(r.client, state.TenantID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if err := r.client.DeleteVolume(ctx, tenantID, state.ID.ValueString()); err != nil && !isNotFound(err) {
+		resp.Diagnostics.AddError("Delete volume failed", err.Error())
+	}
 }
 
 func (r *volumeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

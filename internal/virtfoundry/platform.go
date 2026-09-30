@@ -243,6 +243,10 @@ func (c *Client) GetVolume(ctx context.Context, tenantID, id string) (*Volume, e
 	return findByID(items, id, func(v Volume) string { return v.ID })
 }
 
+func (c *Client) DeleteVolume(ctx context.Context, tenantID, id string) error {
+	return c.jsonRequest(ctx, tenantID, http.MethodDelete, "/api/v1/volumes/"+id, nil, nil)
+}
+
 // ErrDeleteNotSupported indicates the API has no delete endpoint for this resource type.
 var ErrDeleteNotSupported = fmt.Errorf("VirtFoundry API does not support deleting this resource type yet")
 

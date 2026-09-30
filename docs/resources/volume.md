@@ -7,7 +7,7 @@ description: |-
 
 # virtfoundry_volume (Resource)
 
-Manages a block storage volume backed by a Kubernetes PVC. **Note:** the API has no delete endpoint yet — `terraform destroy` removes state only.
+Manages a block storage volume backed by a Kubernetes PVC. Destroy calls `DELETE /api/v1/volumes/{id}`.
 
 ## Example Usage
 
