@@ -24,7 +24,7 @@ resource "virtfoundry_security_group" "ssh" {
     protocol  = "tcp"
     port_from = 22
     port_to   = 22
-    cidr      = "0.0.0.0/0"
+    cidr      = "10.0.0.0/8" # RFC1918 placeholder — override with your admin CIDR
   }
 }
 

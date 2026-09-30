@@ -11,6 +11,13 @@ Creates an API key for programmatic access. The full secret (`vfd_live_...`) is 
 
 > **Security:** `secret` is sensitive and only set at `Create`. It **briefly lives in state until the first `terraform refresh`/`apply -refresh-only`**, then is nulled (`terraform show -json` → `null`). For zero-state use `ephemeral "virtfoundry_api_key"` (TF >=1.10). Treat state as sensitive and enable [state encryption](https://developer.hashicorp.com/terraform/language/state/encryption) (TF >=1.11). See provider README Security section.
 
+## Defaults (expiry and scopes)
+
+| Argument | Default / required | Notes |
+|----------|-------------------|--------|
+| `expires_in_days` | **90** | Provider default TTL. Without a TTL, the VirtFoundry API treats keys as non-expiring. |
+| `scopes` | **required** | Must be an explicit non-empty list. Historically, omitting scopes on the API meant all caller permissions (`["*"]`); the provider no longer allows that omission. |
+
 ## Example Usage
 
 ```hcl
@@ -32,8 +39,8 @@ output "api_key_secret" {
 |------|------|----------|-------------|
 | `name` | String | yes | Key name. Forces replacement. |
 | `user_id` | String | no | Owner user UUID. Defaults to the authenticated user. |
-| `expires_in_days` | Number | no | Expiration in days. Forces replacement. |
-| `scopes` | List(String) | no | Permission scopes. Forces replacement. |
+| `expires_in_days` | Number | no | Expiration in days (default **90**). Forces replacement. |
+| `scopes` | List(String) | yes | Permission scopes. Forces replacement. Empty / omitted historically = all caller perms; provider requires an explicit list. |
 | `tenant_id` | String | no | Tenant UUID. Defaults to provider `tenant_id`. |
 
 ## Attribute Reference

@@ -54,7 +54,8 @@ resource "virtfoundry_security_group" "ssh" {
     protocol  = "tcp"
     port_from = 22
     port_to   = 22
-    cidr      = "0.0.0.0/0"
+    # Prefer an RFC1918 or admin CIDR — never default to 0.0.0.0/0 in shared envs.
+    cidr = "10.0.0.0/8"
   }
 }
 

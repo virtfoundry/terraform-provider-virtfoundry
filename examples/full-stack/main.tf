@@ -49,7 +49,7 @@ resource "virtfoundry_network" "private" {
 
 resource "virtfoundry_security_group" "ssh" {
   name        = var.security_group_name
-  description = "Allow SSH from anywhere (demo)"
+  description = "Allow SSH from a restricted CIDR (demo)"
   vpc_id      = virtfoundry_vpc.main.id
 
   rule {
@@ -57,7 +57,7 @@ resource "virtfoundry_security_group" "ssh" {
     protocol  = "tcp"
     port_from = 22
     port_to   = 22
-    cidr      = "0.0.0.0/0"
+    cidr      = var.ssh_ingress_cidr
   }
 }
 
