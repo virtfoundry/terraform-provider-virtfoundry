@@ -19,7 +19,7 @@ Rules: `typescript-exhaustive-switch`, `no-inline-imports` (se houver TS); Go vi
 ## VirtFoundry
 
 - Produto VirtFoundry em **0.8.x**; este provider tem **série SemVer própria** (não espelhar 0.8 automaticamente).
-- Acceptance / integração no **homelab** — nunca Kind.
+- Acceptance / integração no **homelab Linux** (cluster real ou Kind/Linux com KubeVirt). Gate = homelab; **não** Kind no macOS (KubeVirt não funciona).
 - Preview sem commit só com pedido explícito.
 - Não taguear / publicar release sem OK do maintainer.
 
