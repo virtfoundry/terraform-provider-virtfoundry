@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-01
+
+### Fixed
+
+- Delete volumes via API; align list data sources with API JSON keys.
+- Keep SSH `public_key` whitespace in state; trim on write to match API.
+- Mark IAM secrets sensitive and tighten examples.
+- Allow insecure HTTP in full-stack lab test examples.
+
+### Documentation
+
+- Require SSH key in Linux VM examples.
+- AGENTS.md for Cursor Team Kit.
+
 ## [0.3.0] - 2026-09-19
 
 ### Security
@@ -43,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial Terraform Registry release
 - `virtfoundry_vm` resource
 
+[0.3.1]: https://github.com/virtfoundry/terraform-provider-virtfoundry/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/virtfoundry/terraform-provider-virtfoundry/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/virtfoundry/terraform-provider-virtfoundry/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/virtfoundry/terraform-provider-virtfoundry/releases/tag/v0.1.0
