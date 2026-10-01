@@ -9,11 +9,22 @@ description: |-
 
 Manages a virtual machine in a VirtFoundry tenant. VMs are backed by KubeVirt and support public or private networking, security groups, and cloud-init SSH keys.
 
+> **Linux guest auth:** Creating a Linux VM requires `ssh_key_id` (recommended) or an explicit `cloud_init_password` via the API. There is **no** default guest password (e.g. `ubuntu`). Omitting both returns HTTP 400.
+
 ## Example Usage
 
 ```hcl
 data "virtfoundry_service_offerings" "catalog" {}
 data "virtfoundry_vm_templates" "catalog" {}
+
+resource "tls_private_key" "web" {
+  algorithm = "ED25519"
+}
+
+resource "virtfoundry_ssh_key" "web" {
+  name       = "web-admin"
+  public_key = tls_private_key.web.public_key_openssh
+}
 
 resource "virtfoundry_security_group" "ssh" {
   name   = "allow-ssh"
@@ -35,6 +46,7 @@ resource "virtfoundry_vm" "web" {
   service_offering_id = "small"
   public_ip           = true
   security_group_ids  = [virtfoundry_security_group.ssh.id]
+  ssh_key_id          = virtfoundry_ssh_key.web.id
   desired_state       = "running"
 }
 ```
@@ -50,7 +62,7 @@ resource "virtfoundry_vm" "web" {
 | `public_ip` | Boolean | no | Attach shared public network (requires `security_group_ids`). |
 | `network_ids` | List(String) | no | Private network UUIDs. Default VPC subnet is used when omitted. |
 | `security_group_ids` | List(String) | no | Security group UUIDs. Required when `public_ip = true`. |
-| `ssh_key_id` | String | no | SSH key UUID for cloud-init. |
+| `ssh_key_id` | String | no* | SSH key UUID for cloud-init. *Required for Linux unless the API receives `cloud_init_password` (not exposed as a provider attribute — prefer SSH keys). |
 | `data_volume_id` | String | no | Extra data volume UUID. |
 | `expose_ssh` | Boolean | no | Expose SSH via NodePort on the cluster. |
 | `desired_state` | String | no | `running` or `stopped`. Default: API default. |
