@@ -125,8 +125,9 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				},
 			},
 			"ssh_key_id": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "SSH key UUID injected into cloud-init for this VM.",
+				Optional: true,
+				MarkdownDescription: "SSH key UUID injected into cloud-init. Required for Linux VMs " +
+					"(API returns 400 without ssh_key_id or cloud_init_password; prefer SSH keys — no default guest password).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
