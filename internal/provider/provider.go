@@ -183,6 +183,7 @@ func (p *virtfoundryProvider) Resources(_ context.Context) []func() resource.Res
 		NewUserResource,
 		NewRoleResource,
 		NewAPIKeyResource,
+		NewVKSClusterResource,
 	}
 }
 
@@ -203,6 +204,7 @@ func (p *virtfoundryProvider) DataSources(_ context.Context) []func() datasource
 		NewSSHKeysDataSource,
 		NewRolesDataSource,
 		NewUsersDataSource,
+		NewVKSKubeconfigDataSource,
 	}
 }
 
