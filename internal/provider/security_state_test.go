@@ -82,8 +82,8 @@ func TestProviderHasEphemeralResources(t *testing.T) {
 		t.Fatalf("expected 2 ephemeral resources, got %d", len(ephemerals))
 	}
 	resources := p.Resources(context.Background())
-	if len(resources) != 13 {
-		t.Fatalf("expected 13 resources, got %d", len(resources))
+	if len(resources) != 14 {
+		t.Fatalf("expected 14 resources, got %d", len(resources))
 	}
 }
 

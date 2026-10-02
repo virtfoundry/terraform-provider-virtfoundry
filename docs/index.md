@@ -67,6 +67,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [virtfoundry_user](resources/user.md) | IAM user |
 | [virtfoundry_role](resources/role.md) | IAM role |
 | [virtfoundry_api_key](resources/api_key.md) | API key (secret shown once) |
+| [virtfoundry_vks_cluster](resources/vks_cluster.md) | Kubernetes (VKS) cluster |
 
 ## Ephemeral Resources
 
@@ -87,6 +88,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [virtfoundry_ssh_keys](data-sources/ssh_keys.md) | SSH keys |
 | [virtfoundry_users](data-sources/users.md) | IAM users |
 | [virtfoundry_roles](data-sources/roles.md) | IAM roles |
+| [virtfoundry_vks_kubeconfig](data-sources/vks_kubeconfig.md) | VKS cluster kubeconfig (sensitive) |
 
 ## Examples
 
@@ -96,6 +98,7 @@ See the [examples/](https://github.com/virtfoundry/terraform-provider-virtfoundr
 - **vm** — single VM with public IP
 - **full-stack** — VPC, network, security group, SSH key, and VM
 - **tenant-with-iam** — tenant bootstrap with users and roles
+- **vks-cluster** — VKS cluster and kubeconfig
 
 ## Links
 

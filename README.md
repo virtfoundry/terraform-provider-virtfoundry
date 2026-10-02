@@ -100,6 +100,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [`virtfoundry_user`](docs/resources/user.md) | IAM user |
 | [`virtfoundry_role`](docs/resources/role.md) | IAM role |
 | [`virtfoundry_api_key`](docs/resources/api_key.md) | API key (secret shown once) |
+| [`virtfoundry_vks_cluster`](docs/resources/vks_cluster.md) | Kubernetes (VKS) cluster |
 
 ## Ephemeral Resources (TF >=1.10)
 
@@ -120,6 +121,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [`virtfoundry_ssh_keys`](docs/data-sources/ssh_keys.md) | SSH key list |
 | [`virtfoundry_users`](docs/data-sources/users.md) | IAM user list |
 | [`virtfoundry_roles`](docs/data-sources/roles.md) | IAM role list |
+| [`virtfoundry_vks_kubeconfig`](docs/data-sources/vks_kubeconfig.md) | VKS cluster kubeconfig (sensitive) |
 
 ## Examples
 
@@ -129,6 +131,7 @@ Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUND
 | [`examples/vm/`](examples/vm/) | Single VM with public IP |
 | [`examples/full-stack/`](examples/full-stack/) | VPC + network + SG + SSH key + VM |
 | [`examples/tenant-with-iam/`](examples/tenant-with-iam/) | Tenant bootstrap with users and roles |
+| [`examples/vks-cluster/`](examples/vks-cluster/) | VKS cluster + kubeconfig |
 
 Reusable modules: [`modules/tenant/`](modules/tenant/), [`modules/tenant-iam/`](modules/tenant-iam/).
 

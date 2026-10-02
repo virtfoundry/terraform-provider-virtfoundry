@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `virtfoundry_vks_cluster` resource and `virtfoundry_vks_kubeconfig` data source for VKS clusters.
+
 ## [0.3.1] - 2026-10-01
 
 ### Fixed
