@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-06
+
 ### Added
 
-- `virtfoundry_vks_cluster` resource and `virtfoundry_vks_kubeconfig` data source for VKS clusters.
+- `virtfoundry_vks_cluster` resource and `virtfoundry_vks_kubeconfig` data source for VKS clusters. Requires VirtFoundry **0.10.0** or newer (REST `/api/v1/vks/clusters`).
+
+### Security
+
+- Client no longer echoes raw API error bodies.
+- CodeQL, Scorecard, Dependabot (grouped monthly) and dependency review.
+
+### Documentation
+
+- Kind is Linux-only for KubeVirt; examples pin `~> 0.4`.
 
 ## [0.3.1] - 2026-10-01
 
