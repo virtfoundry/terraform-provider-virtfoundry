@@ -46,7 +46,7 @@ resource "virtfoundry_vm" "web" {
 | `api_key` | API key (`vfd_live_...`) — **recommended** for automation |
 | `username` / `password` | JWT login — suitable for development |
 | `tenant_id` | Default tenant for tenant-scoped resources |
-| `insecure` | Skip TLS verification (development only) |
+| `insecure` | Skip TLS verification and allow a plain `http://` endpoint, which is refused otherwise (development only, for example a `kubectl port-forward`) |
 
 Environment variables: `VIRTFOUNDRY_ENDPOINT`, `VIRTFOUNDRY_API_KEY`, `VIRTFOUNDRY_USERNAME`, `VIRTFOUNDRY_PASSWORD`, `VIRTFOUNDRY_TENANT_ID`, `VIRTFOUNDRY_INSECURE`.
 
