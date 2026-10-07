@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-07
+
 ### Fixed
 
 - `virtfoundry_vm`: applying a VM without `display_name` (the README and docs examples) failed with "Provider produced inconsistent result after apply" and left the VM tainted. `display_name` is now optional and computed (defaults to the VM name).
