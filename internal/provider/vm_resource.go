@@ -84,8 +84,14 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				},
 			},
 			"display_name": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "Human-readable display name.",
+				Optional: true,
+				// The API defaults the display name to the VM name, so a configuration that leaves it out
+				// still gets a value back; without Computed that is an "inconsistent result after apply".
+				Computed:            true,
+				MarkdownDescription: "Human-readable display name. Defaults to the VM name.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"template_id": schema.StringAttribute{
 				Optional:            true,

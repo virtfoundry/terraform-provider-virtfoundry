@@ -56,7 +56,7 @@ resource "virtfoundry_vm" "web" {
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `name` | String | yes | VM name (slug) within the tenant namespace. Forces replacement. |
-| `display_name` | String | no | Human-readable name. |
+| `display_name` | String | no | Human-readable name. Optional and computed: defaults to the VM name. |
 | `template_id` | String | no | VM template UUID. Forces replacement. |
 | `service_offering_id` | String | no | Service offering UUID or name (e.g. `small`). Forces replacement. |
 | `public_ip` | Boolean | no | Attach shared public network (requires `security_group_ids`). |

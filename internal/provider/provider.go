@@ -71,7 +71,7 @@ func (p *virtfoundryProvider) Schema(_ context.Context, _ provider.SchemaRequest
 				Optional:            true,
 			},
 			"insecure": schema.BoolAttribute{
-				MarkdownDescription: "Skip TLS certificate verification. For development only.",
+				MarkdownDescription: "Skip TLS certificate verification and allow a plain http:// endpoint. For development only.",
 				Optional:            true,
 			},
 		},
